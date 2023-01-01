@@ -12,5 +12,6 @@ with a minimum learning curve.
 Refer to the [Skyway homepage](https://cloud-skyway.rcc.uchicago.edu/)
 for more information.
 
-This repository contains the Skyway documentation. The Skyway source code is
-available through [PyPI](https://pypi.org/project/Skyway-cloud/). 
+The generated documentation is published by [GitHub Pages](https://ndtrung81.github.io/skyway/).
+
+The Skyway source code isavailable through [PyPI](https://pypi.org/project/Skyway-cloud/).
