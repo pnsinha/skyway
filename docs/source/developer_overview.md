@@ -13,11 +13,11 @@ The login node and service (management) node should be installed the following s
 
 The following `python` packages are also needed to be ready to use
 
-* miniconda
-* boto3
-* libcloud
-* pysql
-* tabulate
+* `miniconda`
+* `boto3`
+* `libcloud`
+* `pysql`
+* `tabulate`
 
 The login and management nodes are set up in the same manner as for a regular login node and SLURM management node, ready for accepting jobs. If users submit jobs to on-premises compute nodes (e.g. by specifying a proper partition), the jobs will be put on a regular queue.
 
