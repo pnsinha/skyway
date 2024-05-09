@@ -51,12 +51,32 @@ class AWS(Cloud):
         self.vendor = vendor_cfg['aws']
         self.account_name = account
         return
-   
+
+    def node_types(self):
+        """
+        List all the node (instance) types provided by the vendor and their unit prices
+        """
+        node_info = []
+        for node_type in self.vendor['node-types']:
+            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['price']])
+        print(tabulate(node_info, headers=['Name', 'Instance Type', 'Per-hour cost']))
+        print("")
+
+    def group_members(self):
+        """
+        List all the users in this account
+        """
+        user_info = []
+        for user in self.users:
+            user_info.append([user, self.users[user]['budget']])
+        print(tabulate(user_info, headers=['User', 'Budget']))
+        print("")
+
     def running_nodes(self, verbose=False):
         """Member function: running_nodes
         Return identifiers of all running instances
         """
-        
+
         instances = self.get_instances(filters = [{
             "Name" : "instance-state-name",
             "Values" : ["running"]
@@ -100,19 +120,36 @@ class AWS(Cloud):
             print("")
         return nodes
 
-    def create_nodes(self, node_type, names = []):
+    def check_valid_user(self, user_name, verbose=False):
+        if user_name not in self.users:
+            if verbose == True:
+                print(f"{user_name} is not listed in the user group of this account.")
+            return False
+
+        if verbose == True:
+            user_info = []
+            user_info.append([user_name, self.users[user_name]['budget']])
+            print(tabulate(user_info, headers=['User', 'Budget']))
+            print("")
+        return True
+
+    def create_nodes(self, node_type, node_names = []):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
         
          - node_type: instance type information from the Skyway definitions
-         - names: a list of names for the nodes
+         - node_names: a list of names for the nodes, to get the number of nodes
         
-        Return: a group of identifiers (i.e., names) for created instances.
+        Return: a dictionary of instance ID (i.e., names) for created instances.
         """
-        
-        count = len(names)
-        
+
+        response = input(f"Do you want to create an instance of type {node_type}? (y/n) ")
+        if response == 'n':
+            return
+
+        count = len(node_names)      
+
         instances = self.ec2.create_instances(
             ImageId          = self.vendor['ami-id'],
             KeyName          = self.vendor['key-name'],
@@ -140,7 +177,7 @@ class AWS(Cloud):
         
         for inode, instance in enumerate(instances):
             instance.load()
-            nodes[names[inode]] = [str(instance.id), str(instance.public_ip_address)]
+            nodes[node_names[inode]] = [str(instance.id), str(instance.public_ip_address)]
                 
         return nodes
 
@@ -164,10 +201,12 @@ class AWS(Cloud):
             running_time = datetime.now(timezone.utc) - instance.launch_time
             instance_unit_cost = self.get_unit_price(instance)
             running_cost = running_time.seconds/3600.0 * instance_unit_cost
-            print(f"instance {ID} cost: ${running_cost}")
+            print(f"Instance {ID} running cost: ${running_cost}")
 
-            instance.terminate()
-            instances.append(instance)
+            response = input(f"Do you want to terminate the instance {ID}? (y/n) ")
+            if response == 'y':
+                instance.terminate()
+                instances.append(instance)
         
         for instance in instances:
             instance.wait_until_terminated()
@@ -257,7 +296,7 @@ class AWS(Cloud):
                                     running_time,
                                     running_cost])
 
-        print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'ElapsedTime, ''RunningCost']))
+        print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'ElapsedTime', 'RunningCost']))
 
 
     def connect_node(self, instance_ID):

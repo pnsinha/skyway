@@ -17,12 +17,6 @@ from datetime import datetime, timezone
 from skyway import service
 from skyway.service import core
 
-from skyway import utils
-from skyway import cfg
-
-import pandas as pd
-from tabulate import tabulate
-
 # Test account
 #account.list()
 #account.show("rcc-aws")
@@ -49,21 +43,42 @@ from tabulate import tabulate
 # Test cloud nodes
 aws_account = AWS('rcc-aws')
 
+# list all the node types available
+#aws_account.node_types()
+
+# list all the users in this account
+#aws_account.group_members()
+
+# check if the current user is valid (and able to submit jobs)
+#user = os.environ['USER']
+#aws_account.check_valid_user(user)
+
 # create 1 node (instance)
-#aws_account.create_nodes('t1',['test'])
+#aws_account.create_nodes('t1',['node1'])
 
 # list all the nodes (instances)
-nodes = aws_account.list_nodes(verbose=True)
+#nodes = aws_account.list_nodes(verbose=True)
 #nodes = aws_account.running_nodes(verbose=True)
 
 # connect to an instance via SSH
-#aws_account.connect_node('i-05b1fecb479b09722')
+# NOTE: 
+#   + module unload python/anaconda-2021.05 to avoid OpenSSL conflict
+#   + once on the node, can mount the storage (see  /skyway/post/rcc-aws.sh)
+#       sudo mount 172.31.47.245:/skyway/home /home
+#       sudo mount 172.31.47.245:/software /software
+#       sudo mkdir /cloud
+#       sudo mkdir /cloud/rcc-aws
+#       sudo mount 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
+# where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
+
+#aws_account.connect_node('i-06b948e51d24347b3')
+
 
 # get the current cost of all the running instances
 #aws_account.get_running_cost()
 
 # terminate an instance
-#aws_account.destroy_nodes(['i-01a3d974d12c9d4e6'])
+#aws_account.destroy_nodes(['i-06b948e51d24347b3'])
 
 
 
