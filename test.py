@@ -54,31 +54,31 @@ aws_account = AWS('rcc-aws')
 #aws_account.check_valid_user(user)
 
 # create 1 node (instance)
-#aws_account.create_nodes('t1',['node1'])
+#nodes = aws_account.create_nodes('t1',['node1'])
 
 # list all the nodes (instances)
-#nodes = aws_account.list_nodes(verbose=True)
+nodes = aws_account.list_nodes(verbose=True)
 #nodes = aws_account.running_nodes(verbose=True)
 
 # connect to an instance via SSH
 # NOTE: 
 #   + module unload python/anaconda-2021.05 to avoid OpenSSL conflict
 #   + once on the node, can mount the storage (see  /skyway/post/rcc-aws.sh)
-#       sudo mount 172.31.47.245:/skyway/home /home
-#       sudo mount 172.31.47.245:/software /software
+#       sudo mount -t nfs 172.31.47.245:/skyway /home
+#       sudo mount -t nfs 172.31.47.245:/software /software
 #       sudo mkdir /cloud
 #       sudo mkdir /cloud/rcc-aws
-#       sudo mount 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
+#       sudo mount -t nfs 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
 # where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
 
-#aws_account.connect_node('i-06b948e51d24347b3')
+#aws_account.connect_node('i-08889d84cf1ec9eba')
 
 
 # get the current cost of all the running instances
 #aws_account.get_running_cost()
 
 # terminate an instance
-#aws_account.destroy_nodes(['i-06b948e51d24347b3'])
+#aws_account.destroy_nodes(['i-08889d84cf1ec9eba'])
 
 
 

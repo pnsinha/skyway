@@ -169,16 +169,31 @@ class AWS(Cloud):
                 },
 
             ])
-                
+
         for instance in instances:
             instance.wait_until_running()
         
         nodes = {}
-        
+
+        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
+        pem_file_full_path = path + self.account_name + '.pem'
+        username = self.vendor['username']
+        region = self.account['region']
+
         for inode, instance in enumerate(instances):
             instance.load()
             nodes[node_names[inode]] = [str(instance.id), str(instance.public_ip_address)]
-                
+
+            # perform post boot tasks on each node
+            #   + mounting storage (/home, /software) from io-server 172.31.47.245
+            #   + executing custom scripts
+            #    + 
+            ip = instance.public_ip_address
+            ip_converted = ip.replace('.','-')
+            cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
+            os.system(cmd)
+
+
         return nodes
 
     def destroy_nodes(self, IDs = []):
@@ -205,6 +220,12 @@ class AWS(Cloud):
 
             response = input(f"Do you want to terminate the instance {ID}? (y/n) ")
             if response == 'y':
+                # record the running time and cost
+                running_time = datetime.now(timezone.utc) - instance.launch_time
+                instance_unit_cost = self.get_unit_price(instance)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                
+                
                 instance.terminate()
                 instances.append(instance)
         
@@ -304,15 +325,14 @@ class AWS(Cloud):
         Connect to an instance
         [account_name].pem file should be under $SKYWAYROOT/etc/accounts
         """
-        print(f"Extract node information: {instance_ID}")
+        print(f"Instance ID: {instance_ID}")
         ip = self.get_host_ip(instance_ID)
-        ip_converted = ip.replace('.','-')
-
-        print(f"Connect to IP: {ip}")
+        print(f"Connect to instance public IP address: {ip}")
 
         path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
         pem_file_full_path = path + self.account_name + '.pem'
         username = self.vendor['username']
         region = self.account['region']
+        ip_converted = ip.replace('.','-')
         cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com"
         os.system(cmd)
