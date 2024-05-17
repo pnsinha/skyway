@@ -4,6 +4,8 @@
 # pip install pandas pyyaml pymysql tabulate boto3
 # export SKYWAYROOT=/home/ndtrung/Codes/skyway-dev
 
+# for PI-test to create nodes: needs an ami-id and a security group, and a key pair 
+
 import skyway
 from skyway import account
 from skyway import billing
@@ -71,14 +73,14 @@ nodes = aws_account.list_nodes(verbose=True)
 #       sudo mount -t nfs 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
 # where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
 
-#aws_account.connect_node('i-08889d84cf1ec9eba')
+#aws_account.connect_node('i-0be1f6ad518d732e0')
 
 
 # get the current cost of all the running instances
 #aws_account.get_running_cost()
 
 # terminate an instance
-#aws_account.destroy_nodes(['i-08889d84cf1ec9eba'])
+#aws_account.destroy_nodes(['i-02a245175c66936de'])
 
 
 

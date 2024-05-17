@@ -24,6 +24,8 @@ class AWS(Cloud):
         """Constructor:
         The construct initialize the connection to the cloud platform, by using
         setting informations passed by [cfg], such as the credentials.        
+
+        account [string]
         """
 
         #super().__init__(vendor_cfg, kwargs)
@@ -143,16 +145,16 @@ class AWS(Cloud):
         
         Return: a dictionary of instance ID (i.e., names) for created instances.
         """
-
-        response = input(f"Do you want to create an instance of type {node_type}? (y/n) ")
+        unit_price = self.vendor['node-types'][node_type]['price']
+        response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
         if response == 'n':
             return
 
         count = len(node_names)      
 
         instances = self.ec2.create_instances(
-            ImageId          = self.vendor['ami-id'],
-            KeyName          = self.vendor['key-name'],
+            ImageId          = self.account['ami_id'],
+            KeyName          = self.account['key_name'],
             SecurityGroupIds = self.account['security_group'],
             InstanceType     = self.vendor['node-types'][node_type]['name'],
             MaxCount         = count,
@@ -176,7 +178,7 @@ class AWS(Cloud):
         nodes = {}
 
         path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        pem_file_full_path = path + self.account_name + '.pem'
+        pem_file_full_path = path + self.account['key_name'] + '.pem'
         username = self.vendor['username']
         region = self.account['region']
 
@@ -190,7 +192,9 @@ class AWS(Cloud):
             #    + 
             ip = instance.public_ip_address
             ip_converted = ip.replace('.','-')
+            
             cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
+            print(f"{cmd}")
             os.system(cmd)
 
 
@@ -330,9 +334,11 @@ class AWS(Cloud):
         print(f"Connect to instance public IP address: {ip}")
 
         path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        pem_file_full_path = path + self.account_name + '.pem'
+        pem_file_full_path = path + self.account['key_name'] + '.pem'
         username = self.vendor['username']
         region = self.account['region']
         ip_converted = ip.replace('.','-')
+        
         cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com"
+        print(f"{cmd}")
         os.system(cmd)
