@@ -1,8 +1,8 @@
 # module load python/anaconda-2021.05
 # python -m venv skyway-env
 # source activate skyway-env
-# pip install pandas pyyaml pymysql tabulate boto3
-# export SKYWAYROOT=/home/ndtrung/Codes/skyway-dev
+# pip install pandas pyyaml pymysql tabulate boto3 apache-libcloud cryptography paramiko
+# export SKYWAYROOT=/home/ndtrung/Codes/skyway-github
 
 # for PI-test to create nodes: needs an ami-id and a security group, and a key pair 
 
@@ -43,13 +43,13 @@ from skyway.service import core
 #service.core.list_all()
 
 # Test cloud nodes
-aws_account = AWS('rcc-aws')
+aws_account = AWS('ndtrung-aws')
 
 # list all the node types available
-#aws_account.node_types()
+#aws_account.get_node_types()
 
 # list all the users in this account
-#aws_account.group_members()
+#aws_account.get_group_members()
 
 # check if the current user is valid (and able to submit jobs)
 #user = os.environ['USER']
@@ -57,10 +57,11 @@ aws_account = AWS('rcc-aws')
 
 # create 1 node (instance)
 #nodes = aws_account.create_nodes('t1',['node1'])
+#aws_account.get_all_images()
 
 # list all the nodes (instances)
 nodes = aws_account.list_nodes(verbose=True)
-#nodes = aws_account.running_nodes(verbose=True)
+#nodes = aws_account.get_running_nodes(verbose=True)
 
 # connect to an instance via SSH
 # NOTE: 
@@ -73,14 +74,14 @@ nodes = aws_account.list_nodes(verbose=True)
 #       sudo mount -t nfs 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
 # where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
 
-#aws_account.connect_node('i-0be1f6ad518d732e0')
+#aws_account.connect_node('i-01bb096c53098e8da')
 
 
 # get the current cost of all the running instances
 #aws_account.get_running_cost()
 
 # terminate an instance
-#aws_account.destroy_nodes(['i-02a245175c66936de'])
+#aws_account.destroy_nodes(['i-01bb096c53098e8da'])
 
 
 
