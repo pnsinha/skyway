@@ -1,7 +1,7 @@
 # Copyright (c) 2019-2024 The University of Chicago.
 # Part of skyway, released under the BSD 3-Clause License.
 
-# Maintainer: Yuxing Peng, Trung Nguyen
+# Maintainer: Trung Nguyen, Yuxing Peng
 
 """@package docstring
 Documentation for AWS Class
@@ -13,6 +13,7 @@ from .. import utils
 
 from datetime import datetime, timezone
 
+# AWS python SDK
 import boto3
 
 class AWS(Cloud):
