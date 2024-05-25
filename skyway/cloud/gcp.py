@@ -72,14 +72,23 @@ class GCP(Cloud):
                 (1) instance name (2) state (3) type (4) identifier
         """
         nodes = []
-        
+        current_time = datetime.now(timezone.utc)
         for node in self.driver.list_nodes():
-            #nodes.append([node.name, node.state, node.size, node.id])
-            nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0]])
-        
+
+            # Get the creation time of the instance
+            creation_time_str = node.extra.get('creationTimestamp')  # GCP
+            if creation_time_str:
+                # Convert the creation time from string to datetime object
+                creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
+                
+                # Calculate the running time
+                running_time = current_time - creation_time               
+                nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0], running_time])
+
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host']))
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Running Time']))
             print("")
+
         return nodes
     
     def create_nodes(self, node_type: str, node_names = []):
@@ -98,7 +107,9 @@ class GCP(Cloud):
             return
 
         count = len(node_names)
-
+        if count <= 0:
+            raise Exception(f'List of node names is empty.')
+        
         location_name = self.vendor['location'] + '-c'
         locations = self.driver.list_locations()
         location = next((loc for loc in locations if loc.name == location_name), None)
@@ -170,7 +181,7 @@ class GCP(Cloud):
         node = self.driver.ex_get_node(node_name)
         host = node.public_ips[0]
         user_name = os.environ['USER']
-        print("Connect IP: " + host)
+        print("Connecting to host: " + host)
         cmd = 'ssh ' + user_name + '@' + host
         os.system(cmd)
         return
@@ -182,7 +193,10 @@ class GCP(Cloud):
         for name in node_names:
             try:
                 node = self.driver.ex_get_node(name)
-                self.driver.destroy_node(node)
+                if node.name == name:
+                    response = input(f"Do you want to destroy {node.name}? (y/n) ")
+                    if response == 'y':
+                        self.driver.destroy_node(node)
             except:
                 continue
         return
@@ -247,15 +261,64 @@ class GCP(Cloud):
 
         return nodes
     
-    def get_unit_price(self, instance):
+    def get_unit_price(self, node):
         """
-        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        Get the per-hour price of an instance depending on its instance_type (e.g. n1-standard-1)
+        For GCE, node.size is the instance type.
         """
+
         for node_type in self.vendor['node-types']:
-            if self.vendor['node-types'][node_type]['name'] == instance.instance_type:
-                instance_type = self.vendor['node-types'][node_type]['name']
+            if self.vendor['node-types'][node_type]['name'] == node.size:
                 unit_price = self.vendor['node-types'][node_type]['price']
                 return unit_price
+        return -1.0
+        
 
     def get_host_ip(self, node_name):
         return self.driver.ex_get_node(node_name).public_ips[0]
+
+
+    def get_instance_name(self, node):
+        """Member function: get_instance_name
+        Get the name information from the instance with given ID.
+        Note: AWS doesn't use unique name for instances, instead, name is an
+        attribute stored in the tags.
+        
+         - node: a node object
+        """
+        
+        return node.name
+
+    def get_instances(self, filters = []):
+        """Member function: get_instances
+        Get a list of instance objects with give filters
+        """
+        return self.driver.list_nodes()
+
+    def get_running_cost(self, verbose=True):
+
+        current_time = datetime.now(timezone.utc)
+
+        nodes = []
+        for node in self.driver.list_nodes():
+            if self.get_instance_name(node) in self.account['protected_nodes']:
+                continue
+            if node.state == "running":
+                # Get the creation time of the instance
+                creation_time_str = node.extra.get('creationTimestamp')  # GCP
+                if creation_time_str:
+                    # Convert the creation time from string to datetime object
+                    creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
+                    
+                    # Calculate the running time
+                    running_time = current_time - creation_time
+
+                    instance_unit_cost = self.get_unit_price(node)
+                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+                    nodes.append([node.name, node.size, node.id, node.public_ips[0], running_time, running_cost])
+
+        if verbose == True:
+            print(tabulate(nodes, headers=['Name', 'Type', 'Instance ID', 'Host', 'Running Time', 'Running Cost']))
+            print("")
+

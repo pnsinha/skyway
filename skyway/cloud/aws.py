@@ -352,9 +352,9 @@ class AWS(Cloud):
         """
         for node_type in self.vendor['node-types']:
             if self.vendor['node-types'][node_type]['name'] == instance.instance_type:
-                instance_type = self.vendor['node-types'][node_type]['name']
                 unit_price = self.vendor['node-types'][node_type]['price']
                 return unit_price
+        return -1.0
 
     def get_running_cost(self):
         instances = self.get_instances()

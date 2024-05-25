@@ -59,7 +59,7 @@ account = GCP('ndtrung-gcp')
 #account.check_valid_user(user)
 
 # create 1 node (instance)
-nodes = account.create_nodes('c1',['node1'])
+#nodes = account.create_nodes('c1',['node1'])
 #account.get_all_images()
 
 # list all the nodes (instances)
@@ -78,8 +78,7 @@ nodes = account.list_nodes(verbose=True)
 #       sudo mount -t nfs 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
 # where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
 
-#account.connect_node('i-01bb096c53098e8da')
-
+#account.connect_node('node1')
 
 # get the current cost of all the running instances
 #account.get_running_cost()
