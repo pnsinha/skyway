@@ -11,10 +11,11 @@ from skyway import account
 from skyway import billing
 
 from skyway import cloud
-from skyway.cloud import aws
-from skyway.cloud import gcp
+#from skyway.cloud import aws
+#from skyway.cloud import gcp
 from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
+from skyway.cloud.azure import *
 
 from datetime import datetime, timezone
 
@@ -23,7 +24,9 @@ from skyway.service import core
 
 # Test account
 #account.list()
+#account.show("ndtrung-aws")
 #account.show("ndtrung-gcp")
+#account.show("ndtrung-azure")
 
 # Test billing
 #b = billing.Billing("rcc-aws")
@@ -46,7 +49,8 @@ from skyway.service import core
 
 # Test cloud nodes
 #account = AWS('ndtrung-aws')
-account = GCP('ndtrung-gcp')
+#account = GCP('ndtrung-gcp')
+account = AZURE('ndtrung-azure')
 
 # list all the node types available
 #account.get_node_types()
@@ -84,7 +88,7 @@ nodes = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-account.destroy_nodes(['node1'])
+#account.destroy_nodes(['node1'])
 
 
 
