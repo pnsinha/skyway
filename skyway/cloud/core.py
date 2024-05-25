@@ -9,7 +9,7 @@ from .. import utils
 class Cloud():
     
     @staticmethod
-    def create(vendor, kwargs):
+    def create(vendor: str, kwargs):
         print(f"Vendor: {vendor}")
         vendor = vendor.lower()
         # load cloud.yaml under $SKYWAYROOT/etc/
@@ -17,7 +17,7 @@ class Cloud():
         print(f"Vendor cfg: {vendor_cfg}")
         if vendor not in vendor_cfg:
             raise Exception(f'Cloud vendor {vendor} is undefined.')
-                
+
         from importlib import import_module
         module = import_module('skyway.cloud.' + vendor)
         cloud_class = getattr(module, vendor.upper())
@@ -29,10 +29,26 @@ class Cloud():
         for k, v in kwargs.items():
             setattr(self, k.replace('-','_'), v)
     
-    def connect_node(self, hostname):
-        print("Extract node information:", hostname)
-        ip = self.get_host_ip(hostname)
-        
-        print("Connect to IP:", ip)
-        cmd = 'ssh ' + self.vendor['username'] + '@' + ip
-        os.system(cmd)
+    def list_nodes(self, verbose=False):
+        pass
+
+    def create_nodes(self, node_type: str, node_names = []):
+        pass
+
+    def connect_node(self, node_name):
+        pass
+
+    def destroy_node(self, node_name):
+        pass
+
+    def check_valid_user(self, user_name, verbose=False):
+        pass
+
+    def get_node_types(self):
+        pass
+
+    def get_running_nodes(self, verbose=False):
+        pass
+
+    def get_host_ip(self, node_name):
+        pass

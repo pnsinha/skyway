@@ -8,12 +8,12 @@
 Documentation for GCP Class
 """
 import os
+import logging
 from tabulate import tabulate
+from datetime import datetime, timezone
+
 from .core import Cloud
 from .. import utils
-
-import logging
-from datetime import datetime, timezone
 
 # apache-libcloud
 from libcloud.compute.types import Provider
@@ -40,6 +40,10 @@ class GCP(Cloud):
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
 
+        self.keyfile = path + self.account['key_file'] + '.json'
+        if not os.path.isfile(self.keyfile):
+            raise Exception(f"PEM key {self.keyfile} is not found.")
+
         # load cloud.yaml under $SKYWAYROOT/etc/
         path = os.environ['SKYWAYROOT'] + '/etc/'
         vendor_cfg = utils.load_config('cloud', path)
@@ -48,9 +52,6 @@ class GCP(Cloud):
       
         self.vendor = vendor_cfg['gcp']
         self.account_name = account
-        self.keyfile = path + self.account['key_file'] + '.json'
-        if not os.path.isfile(self.keyfile):
-            raise Exception(f"PEM key {self.keyfile} is not found.")
 
         ComputeEngine = get_driver(Provider.GCE)
         try:
@@ -73,7 +74,8 @@ class GCP(Cloud):
         nodes = []
         
         for node in self.driver.list_nodes():
-            nodes.append([node.name, node.state, node.size, node.id])
+            #nodes.append([node.name, node.state, node.size, node.id])
+            nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0]])
         
         if verbose == True:
             print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host']))
@@ -95,10 +97,9 @@ class GCP(Cloud):
         if response == 'n':
             return
 
-        count = len(node_names)      
-        name = node_names[0]
+        count = len(node_names)
 
-        location_name = self.vendor['location']
+        location_name = self.vendor['location'] + '-c'
         locations = self.driver.list_locations()
         location = next((loc for loc in locations if loc.name == location_name), None)
         if location is None:
@@ -117,21 +118,18 @@ class GCP(Cloud):
             'https://www.googleapis.com/auth/trace.append'
         ]
         network = 'vpc1'      # get this from ex_list_networks()
-        subnet = 'vpc1'       # get this from ex_list_subnetworks()
+        subnets = self.driver.ex_list_subnetworks()
+        subnet = next((sub for sub in subnets if sub.name == location_name), None)
 
-        for name in node_names:
-            
+        for node_name in node_names:
             gpu_type = None
-            gpu_count = None
-            location = self.vendor['location'] + '-b'
-            
+            gpu_count = None           
             if 'gpu' in node_cfg:
                 gpu_type = node_cfg['gpu-type']
                 gpu_count = node_cfg['gpu']
-                location = self.vendor['location'] + '-c'
-            
+
             try:
-                node = self.driver.create_node(name,
+                node = self.driver.create_node(node_name,
                                                size = node_cfg['name'],
                                                image = self.account['image_name'], 
                                                location = location,
@@ -147,10 +145,11 @@ class GCP(Cloud):
                                                ex_accelerator_count = gpu_count,
                                                ex_on_host_maintenance = 'TERMINATE')
 
-                nodes[name] = [name, node.public_ips[0]]
-                
+                nodes[node_name] = [node_name, node.public_ips[0]]
+                self.driver.wait_until_running([node])
+                print(f'Created instance: {node.name}')
             except Exception as ex:
-                logging.info("Failed to create %s. Reason: %s" % (name, str(ex)))
+                logging.info("Failed to create %s. Reason: %s" % (node_name, str(ex)))
         
         return nodes
 
@@ -186,7 +185,6 @@ class GCP(Cloud):
                 self.driver.destroy_node(node)
             except:
                 continue
-        
         return
 
     def check_valid_user(self, user_name, verbose=False):
@@ -249,5 +247,15 @@ class GCP(Cloud):
 
         return nodes
     
+    def get_unit_price(self, instance):
+        """
+        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        """
+        for node_type in self.vendor['node-types']:
+            if self.vendor['node-types'][node_type]['name'] == instance.instance_type:
+                instance_type = self.vendor['node-types'][node_type]['name']
+                unit_price = self.vendor['node-types'][node_type]['price']
+                return unit_price
+
     def get_host_ip(self, node_name):
         return self.driver.ex_get_node(node_name).public_ips[0]
