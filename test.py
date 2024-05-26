@@ -67,7 +67,7 @@ account = AZURE('ndtrung-azure')
 #account.get_all_images()
 
 # list all the nodes (instances)
-nodes = account.list_nodes(verbose=True)
+#nodes = account.list_nodes(verbose=True)
 
 #nodes = account.get_running_nodes(verbose=True)
 
@@ -88,7 +88,7 @@ nodes = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-#account.destroy_nodes(['node1'])
+account.destroy_nodes(['node1'])
 
 
 

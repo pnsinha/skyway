@@ -83,10 +83,10 @@ class GCP(Cloud):
                 
                 # Calculate the running time
                 running_time = current_time - creation_time               
-                nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0], running_time])
+                nodes.append([node.name, node.state, node.size, node.public_ips[0], running_time])
 
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Running Time']))
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Host', 'Running Time']))
             print("")
 
         return nodes
@@ -188,8 +188,12 @@ class GCP(Cloud):
 
 
     def destroy_nodes(self, node_names):
+        '''
+        Destroy all the nodes
+        node_names = list of node names as strings
+        '''
         if isinstance(node_names, str): node_names = [node_names]
-        
+
         for name in node_names:
             try:
                 node = self.driver.ex_get_node(name)
