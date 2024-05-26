@@ -16,6 +16,11 @@ from datetime import datetime, timezone
 # AWS python SDK
 import boto3
 
+# It is also possible to use libcloud EC2NodeDriver
+from libcloud.compute.types import Provider
+from libcloud.compute.providers import get_driver
+from libcloud.compute.drivers.ec2 import EC2NodeDriver
+
 class AWS(Cloud):
     """Documentation for AWS Class
     This Class is used as the driver to operate Cloud resource for [Demo]
@@ -50,30 +55,32 @@ class AWS(Cloud):
         self.account_name = account
 
         # This is how the existing skyway creates the ec2 resource without master
-        #self.ec2 = boto3.resource('ec2',
-        #    aws_access_key_id = self.account['access_key_id'],
-        #    aws_secret_access_key = self.account['secret_access_key'],
-        #    region_name = self.account['region'])
+        self.using_trusted_agent = True
+        if self.using_trusted_agent == False:
+            self.ec2 = boto3.resource('ec2',
+                                       aws_access_key_id = self.account['access_key_id'],
+                                       aws_secret_access_key = self.account['secret_access_key'],
+                                       region_name = self.account['region'])
+        else:
+            # This is how the testing skyway (midway3 VM) uses the IAM rcc-skyway as a trusted agent from the RCC-Skyway account (391009850283)
+            self.client = boto3.client('sts',
+                aws_access_key_id = self.vendor['master_access_key_id'],
+                aws_secret_access_key = self.vendor['master_secret_access_key'])
 
-        # This is how the testing skyway (midway3 VM) uses the IAM rcc-skyway from the RCC-Skyway account (391009850283)
-        self.client = boto3.client('sts',
-            aws_access_key_id = self.vendor['master_access_key_id'],
-            aws_secret_access_key = self.vendor['master_secret_access_key'])
-
-        self.assumed_role = self.client.assume_role(
-            RoleArn = "arn:aws:iam::%s:role/%s" % (self.account['account_id'], self.account['role_name']), 
-            RoleSessionName = "RCCSkyway"
-        )
-        
-        credentials = self.assumed_role['Credentials']
-        
-        self.ec2 = boto3.resource('ec2',
-            aws_access_key_id = credentials['AccessKeyId'],
-            aws_secret_access_key = credentials['SecretAccessKey'],
-            aws_session_token= credentials['SessionToken'],
-            region_name = self.account['region'])
-
-        return
+            self.assumed_role = self.client.assume_role(
+                RoleArn = "arn:aws:iam::%s:role/%s" % (self.account['account_id'], self.account['role_name']), 
+                RoleSessionName = "RCCSkyway"
+            )
+            credentials = self.assumed_role['Credentials']
+            self.ec2 = boto3.resource('ec2',
+                                      aws_access_key_id = credentials['AccessKeyId'],
+                                      aws_secret_access_key = credentials['SecretAccessKey'],
+                                      aws_session_token= credentials['SessionToken'],
+                                      region_name = self.account['region'])
+        self.using_libcloud = False
+        if self.using_libcloud:
+            EC2 = get_driver(Provider.EC2)
+            self.driver = EC2(self.account['access_key_id'], self.account['secret_access_key'], self.account['region'])
 
     def list_nodes(self, verbose=False):
         """Member function: list_nodes
@@ -194,29 +201,34 @@ class AWS(Cloud):
         #print(f"{cmd}")
         os.system(cmd)
 
-    def destroy_nodes(self, IDs = []):
+    def destroy_nodes(self, node_names):
         """Member function: destroy nodes
-        Destroy a group of compute instances
+        Destroy all the nodes (instances) given the list of node names
+                 - node_names: a list of node names to be destroyed
         NOTE: should store the running cost and time before terminating the node(s)
-
-         - IDs: a group of identifiers of instances to be destroyed
+        NOTE: may need to revise for using IDs instead of node names, as IDs are unique
+              for ID in IDs:
+                  instance = self.ec2.Instance(ID)
+                  if self.get_instance_name(instance) in self.account['protected_nodes']:
+                      continue
         """
+        if isinstance(node_names, str): node_names = [node_names]
         
         instances = []
-        
-        for ID in IDs:
-        
-            instance = self.ec2.Instance(ID)
-            
-            if self.get_instance_name(instance) in self.account['protected_nodes']:
+        for name in node_names:
+            if name in self.account['protected_nodes']:
                 continue
+            
+            all_instances = self.get_instances()
+            instance = next((inst for inst in all_instances if self.get_instance_name(inst) == name), None)
+            if instance is None:
+                raise ValueError(f"Instance '{name}' not found.")
             
             running_time = datetime.now(timezone.utc) - instance.launch_time
             instance_unit_cost = self.get_unit_price(instance)
             running_cost = running_time.seconds/3600.0 * instance_unit_cost
-            #print(f"Instance {ID} running cost: ")
 
-            response = input(f"Do you want to terminate the instance {ID} (running cost ${running_cost:0.5f})? (y/n) ")
+            response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
             if response == 'y':
                 # record the running time and cost
                 running_time = datetime.now(timezone.utc) - instance.launch_time
@@ -228,8 +240,7 @@ class AWS(Cloud):
         
         for instance in instances:
             instance.wait_until_terminated()
-        
-        return
+
 
     def check_valid_user(self, user_name, verbose=False):
         if user_name not in self.users:
@@ -314,10 +325,7 @@ class AWS(Cloud):
         return nodes
 
     def get_host_ip(self, instance_ID):
-        """Member function: SSH to a remote instance
-        This function prepare the IP address and SSH to the node with the
-        given identifier.
-        
+        """Member function: get the IP address of an instance (node) 
          - ID: instance identifier
         """
         
@@ -367,14 +375,9 @@ class AWS(Cloud):
     def get_instances(self, filters = []):
         """Member function: get_instances
         Get a list of instance objects with give filters
+        NOTE: if using libcloud then use self.driver.list_nodes()
         """
-        
-        return self.ec2.instances.filter(Filters = filters)
-
-
-    def get_cost(self, start, end):
-        
-        pass
+        return self.ec2.instances.filter(Filters = filters)    
 
     def get_unit_price(self, instance):
         """

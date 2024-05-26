@@ -211,7 +211,8 @@ class AZURE(Cloud):
 
     def destroy_nodes(self, node_names):
         '''
-        Destroy all the nodes
+        Destroy all the nodes given the list of node names
+        NOTE: should store the running cost and time before terminating the node(s)
         node_names = list of node names as strings
         '''
         if isinstance(node_names, str): node_names = [node_names]

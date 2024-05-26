@@ -48,9 +48,9 @@ from skyway.service import core
 #service.core.list_all()
 
 # Test cloud nodes
-#account = AWS('ndtrung-aws')
+account = AWS('ndtrung-aws')
 #account = GCP('ndtrung-gcp')
-account = AZURE('ndtrung-azure')
+#account = AZURE('ndtrung-azure')
 
 # list all the node types available
 #account.get_node_types()
@@ -65,6 +65,7 @@ user = os.environ['USER']
 
 # create 1 node (instance)
 #nodes = account.create_nodes('c1',['node1'])
+nodes = account.create_nodes('t1',['node1'])
 #account.get_all_images()
 
 # list all the nodes (instances)
@@ -89,7 +90,7 @@ nodes = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-account.destroy_nodes(['node1'])
+#account.destroy_nodes(['node1'])
 
 
 
