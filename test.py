@@ -59,15 +59,16 @@ account = AZURE('ndtrung-azure')
 #account.get_group_members()
 
 # check if the current user is valid (and able to submit jobs)
-#user = os.environ['USER']
+user = os.environ['USER']
 #account.check_valid_user(user)
+#account.get_budget()
 
 # create 1 node (instance)
 #nodes = account.create_nodes('c1',['node1'])
 #account.get_all_images()
 
 # list all the nodes (instances)
-#nodes = account.list_nodes(verbose=True)
+nodes = account.list_nodes(verbose=True)
 
 #nodes = account.get_running_nodes(verbose=True)
 

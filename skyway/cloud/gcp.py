@@ -101,6 +101,9 @@ class GCP(Cloud):
         
         Return: a dictionary of instance ID (i.e., names) for created instances.
         """
+        user_name = os.environ['USER']
+        user_budget = self.get_budget(user_name=user_name, verbose=False)
+        print(f"User budget: ${user_budget}")
         unit_price = self.vendor['node-types'][node_type]['price']
         response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
         if response == 'n':
@@ -155,9 +158,13 @@ class GCP(Cloud):
                                                ex_accelerator_type = gpu_type,
                                                ex_accelerator_count = gpu_count,
                                                ex_on_host_maintenance = 'TERMINATE')
-
-                nodes[node_name] = [node_name, node.public_ips[0]]
                 self.driver.wait_until_running([node])
+
+                # record node_type, creation time
+                creation_time_str = node.extra.get('creationTimestamp') 
+                node_type = node_cfg['name']
+                nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
+
                 print(f'Created instance: {node.name}')
             except Exception as ex:
                 logging.info("Failed to create %s. Reason: %s" % (node_name, str(ex)))
@@ -217,6 +224,31 @@ class GCP(Cloud):
             print(tabulate(user_info, headers=['User', 'Budget']))
             print("")
         return True
+
+    def get_budget(self, user_name=None, verbose=True):
+        if user_name is not None:
+            if user_name not in self.users:
+                print(f"{user_name} is not listed in the user group of this account.")
+                return -1
+        
+            if verbose == True:
+                user_info = []
+                user_info.append([user_name, self.users[user_name]['budget']])
+                print(tabulate(user_info, headers=['User', 'Budget']))
+                print("")
+            return self.users[user_name]['budget']
+        else:
+            user_info = []
+            total_budget = 0.0
+            for name in self.users:
+                total_budget += float(self.users[name]['budget'])
+                if verbose == True:
+                    user_info.append([name, self.users[name]['budget']])
+            if verbose == True:
+                print(tabulate(user_info, headers=['User', 'Budget']))
+                print(f"Total: ${total_budget}")
+            return total_budget
+
 
     def get_node_types(self):
         """

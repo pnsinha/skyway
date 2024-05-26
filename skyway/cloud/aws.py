@@ -109,6 +109,9 @@ class AWS(Cloud):
         
         Return: a dictionary of instance ID (i.e., names) for created instances.
         """
+        user_name = os.environ['USER']
+        user_budget = self.get_budget(user_name=user_name, verbose=False)
+        print(f"User budget: ${user_budget}")
         unit_price = self.vendor['node-types'][node_type]['price']
         response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
         if response == 'n':
@@ -151,7 +154,11 @@ class AWS(Cloud):
 
         for inode, instance in enumerate(instances):
             instance.load()
-            nodes[node_names[inode]] = [str(instance.id), str(instance.public_ip_address)]
+
+            # record node_type, launch time
+            instance_type = str(instance.instance_type)
+            launch_time = instance.launch_time.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+            nodes[node_names[inode]] = [instance_type, launch_time, str(instance.public_ip_address)]
 
             # perform post boot tasks on each node
             #   + mounting storage (/home, /software) from io-server 172.31.47.245
@@ -215,8 +222,7 @@ class AWS(Cloud):
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
-                
-                
+
                 instance.terminate()
                 instances.append(instance)
         
@@ -237,6 +243,30 @@ class AWS(Cloud):
             print(tabulate(user_info, headers=['User', 'Budget']))
             print("")
         return True
+
+    def get_budget(self, user_name=None, verbose=True):
+        if user_name is not None:
+            if user_name not in self.users:
+                print(f"{user_name} is not listed in the user group of this account.")
+                return -1
+        
+            if verbose == True:
+                user_info = []
+                user_info.append([user_name, self.users[user_name]['budget']])
+                print(tabulate(user_info, headers=['User', 'Budget']))
+                print("")
+            return self.users[user_name]['budget']
+        else:
+            user_info = []
+            total_budget = 0.0
+            for name in self.users:
+                total_budget += float(self.users[name]['budget'])
+                if verbose == True:
+                    user_info.append([name, self.users[name]['budget']])
+            if verbose == True:
+                print(tabulate(user_info, headers=['User', 'Budget']))
+                print(f"Total: ${total_budget}")
+            return total_budget
 
     def get_node_types(self):
         """
