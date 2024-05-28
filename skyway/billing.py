@@ -17,7 +17,8 @@ class Billing:
     def __init__(self, account_name):
         self.account = account_name
         #budget_cols = 'cloud,startdate,amount,rate'
-        #budget_row = DBConnector().select('budget', budget_cols, where="account='%s'" % (account_name), limit='1')[0]
+
+        # expect to have budget.csv under $SKYWAYROOT/etc/
         df = pd.read_csv(f"{cfg['paths']['etc']}/budget.csv")
         # select the rows where account is account_name
         #   convert the rows into a dictionary
@@ -35,29 +36,24 @@ class Billing:
 
         if os.path.isfile(billing_file):
             with open(billing_file, 'r') as f:
-                for k,v in yaml.load(f, Loader=yaml.FullLoader).items():
+                for k, v in yaml.load(f, Loader=yaml.FullLoader).items():
                     if k in ['status']:
                         setattr(self, k, v)
-        
+
         self.cloud_cfg = load_config('cloud')[self.cloud]
     
-    def usages(self):
+    def usages(self, verbose=False):
         nt = self.cloud_cfg['node-types']
         #bills = [[t+":"+nt[t]['name'], h, nt[t]['price'] * h] for t,h in NodeMap.history_summary(self.account, self.budget['startdate']).items()]
-        
-        #rates = [[t+":"+nt[t]['name'], n, nt[t]['price'] * n] for t,n in NodeMap.running_summary(self.account).items()]
-        
+        #rates = [[t+":"+nt[t]['name'], n, nt[t]['price'] * n] for t,n in NodeMap.running_summary(self.account).items()]      
         #for t,n in NodeMap.running_summary(self.account).items():
         #    print(t,n)
-        usage_acct = NodeMap.running_summary(self.account)
+        #usage_acct = NodeMap.running_summary(self.account)
 
-        #print(usage_acct['type'].values)
-        
-            
         #total = sum([bill[-1] for bill in bills])
         pct = 10 #total * 100 / self.budget['amount']
 
-        return {
+        usage_dict = {
             'cloud': self.cloud,
             #'bills': bills,
             #'rates': rates,
@@ -68,6 +64,17 @@ class Billing:
             'pct': pct,
             'status': 'normal' if pct<90 else ('warning' if pct<100 else 'exceeded')
         }
+
+        if verbose == True:
+            print(f"Billing summary of {self.account}:")
+            print("  - Budget:       $%0.3f (started from %s)" % (usage_dict['budget']['amount'], usage_dict['budget']['startdate']))
+            print("  - Maximum rate: $%0.3f/hour" % (usage_dict['budget']['rate']))
+            print("  - Current rate: $%0.3f/hour" % (usage_dict['rate']))
+            print("  - Total usage:  $%0.3f" % (usage_dict['total']))
+            print("  - Balance:      $%0.3f" % (usage_dict['budget']['amount'] - usage_dict['total']))
+            print("  - Status:       %s\n" % (usage_dict['status'].upper()))
+
+        return usage_dict
     
     def user_usages(self, user):
         nt = self.cloud_cfg['node-types']

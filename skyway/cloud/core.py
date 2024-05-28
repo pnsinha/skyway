@@ -30,30 +30,6 @@ class Cloud():
         
         for k, v in kwargs.items():
             setattr(self, k.replace('-','_'), v)
-    
-    def list_nodes(self, verbose=False):
-        '''
-        list all the running/stopped nodes (aka instances)
-        '''
-        pass
-
-    def create_nodes(self, node_type: str, node_names = []):
-        '''
-        create several nodes (aka instances) given a list of node names
-        '''
-        pass
-
-    def connect_node(self, node_name):
-        '''
-        connect to a node (aka instance) via SSH
-        '''
-        pass
-
-    def destroy_nodes(self, node_names):
-        '''
-        destroy several nodes (aka instances) given a list of node names
-        '''
-        pass
 
     def check_valid_user(self, user_name, verbose=False):
         '''
@@ -76,6 +52,30 @@ class Cloud():
     def get_group_members(self):
         '''
         get all the user names in this account (listed in the .yaml file)
+        '''
+        pass
+
+    def list_nodes(self, verbose=False):
+        '''
+        list all the running/stopped nodes (aka instances)
+        '''
+        pass
+
+    def create_nodes(self, node_type: str, node_names = [], walltime = None):
+        '''
+        create several nodes (aka instances) given a list of node names
+        '''
+        pass
+
+    def connect_node(self, node_name):
+        '''
+        connect to a node (aka instance) via SSH
+        '''
+        pass
+
+    def destroy_nodes(self, node_names):
+        '''
+        destroy several nodes (aka instances) given a list of node names
         '''
         pass
 

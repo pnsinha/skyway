@@ -106,7 +106,7 @@ class AWS(Cloud):
             print("")
         return nodes
 
-    def create_nodes(self, node_type: str, node_names = []):
+    def create_nodes(self, node_type: str, node_names = [], walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
@@ -125,7 +125,7 @@ class AWS(Cloud):
             return
 
         count = len(node_names)      
-        name = node_names[0]
+        node_name = node_names[0]
 
         # ImageID and KeyName provided by the account then user can connect to the running node
         #   if ImageID is from the vendor, KeyName from the account, ssh connections is denied
@@ -142,7 +142,11 @@ class AWS(Cloud):
                     'Tags' : [
                          {
                             'Key' : 'Name',
-                            'Value' : name
+                            'Value' : node_name
+                         },
+                         {
+                            'Key' : 'User',
+                            'Value' : user_name
                          }
                     ]
                 },
@@ -153,11 +157,21 @@ class AWS(Cloud):
             instance.wait_until_running()
         
         nodes = {}
-
+        # .pem file is the private key of the local machine that has a correponding public key listed
+        # as in ~/.ssh/authorized_keys on the node
         path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
         pem_file_full_path = path + self.account['key_name'] + '.pem'
         username = self.vendor['username']
         region = self.account['region']
+
+        if walltime is None:
+            walltime_str = "00:05:00"
+        else:
+            walltime_str = walltime
+
+        # shutdown the instance after the walltime (in minutes)
+        pt = datetime.datetime(walltime_str, "%H:%M:%S")
+        walltime_in_minutes = pt.hour * 60 + pt.minute + pt.second/60
 
         for inode, instance in enumerate(instances):
             instance.load()
@@ -168,16 +182,19 @@ class AWS(Cloud):
             nodes[node_names[inode]] = [instance_type, launch_time, str(instance.public_ip_address)]
 
             # perform post boot tasks on each node
-            #   + mounting storage (/home, /software) from io-server 172.31.47.245
-            #   + executing custom scripts
-            #    + 
+            #   + mounting storage (/home, /software) from io-server 172.31.47.245 (private IP of the rcc-io node) (rcc-aws, not using a trusted agent)
+            #   + executing some custom scripts
+            #   + shut down the instance after the walltime
+            io_server = "172.31.47.245"
             ip = instance.public_ip_address
             ip_converted = ip.replace('.','-')
-            
-            cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
+
+            # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
+            #cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
+            cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo shutdown -P {walltime_in_minutes}' "
+
             print(f"{cmd}")
             os.system(cmd)
-
 
         return nodes
 

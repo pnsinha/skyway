@@ -29,16 +29,8 @@ from skyway.service import core
 #account.show("ndtrung-azure")
 
 # Test billing
-#b = billing.Billing("rcc-aws")
-#u = b.usages()
-
-#print("Summary")
-#print("Budget:       $%0.3f (started from %s)" % (u['budget']['amount'], u['budget']['startdate']))
-#print("Maximum Rate: $%0.3f/hour" % (u['budget']['rate']))
-#print("Current Rate: $%0.3f/hour" % (u['rate']))
-#print("Total Cost:   $%0.3f" % (u['total']))
-#print("Balance:      $%0.3f" % (u['budget']['amount'] - u['total']))
-#print("Status:       %s\n" % (u['status'].upper()))
+#b = billing.Billing("ndtrung-aws")
+#u = b.usages(verbose=True)
 
 # Test service
 #service.core.register("cloud-rcc-aws")

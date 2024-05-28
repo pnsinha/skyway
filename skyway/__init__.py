@@ -44,5 +44,5 @@ for k in cfg['paths']:
 #if os.getuid() == 0:
 cfg.update(load_config('root'))
 
-from .nodemap import NodeMap
-NodeMap.lock_file = cfg['paths']['var'] + 'nodes.lock'
+#from .nodemap import NodeMap
+#NodeMap.lock_file = cfg['paths']['var'] + 'nodes.lock'

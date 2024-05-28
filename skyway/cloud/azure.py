@@ -105,7 +105,7 @@ class AZURE(Cloud):
             print("")
 
 
-    def create_nodes(self, node_type: str, node_names = []):
+    def create_nodes(self, node_type: str, node_names = [], walltime = None):
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
         print(f"User budget: ${user_budget}")
@@ -118,40 +118,51 @@ class AZURE(Cloud):
         node_cfg = self.vendor['node-types'][node_type]
         size_name = node_cfg['name']           # e.g. "Standard_DS1_v2"
         
+        if walltime is None:
+            walltime_str = "00:05:00"
+        else:
+            walltime_str = walltime
+
+        # shutdown the instance after the walltime (in minutes)
+        pt = datetime.datetime(walltime_str, "%H:%M:%S")
+        walltime_in_minutes = pt.hour * 60 + pt.minute + pt.second/60
+
+        location_name = 'East US'  # Replace with your desired location
+        locations = self.driver.list_locations()
+        location = next((loc for loc in locations if loc.name == location_name), None)
+        if location is None:
+            raise ValueError(f"Location '{location_name}' not found.")
+
+        # authentication with public key on this machine per-user (id_rsa_azure.pub)
+        # need to read in from ~/.ssh/id_rsa_azure.pub from the account .yaml file  
+        auth = NodeAuthSSHKey('ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDXzS0IuhNV3EyNkUXRV0yML0Fi+r+7qkqQqC7Ahe239ct3wwj1uwFnHo6UxF7zH7i33rtP/0YX5aV0l1fxp/7S3pF7Y0ZQDYryW15DxDxxjHkbNEssZjQ0XYWtf6g6VD5v8UWZAFvctqytbE2f39xDRimvifQMh8ogG45zRquKfuZ1vmtT/ls/7iW4cRtVjXNhN+lEmggZ+183akqDE0OJ01SM0aVNULxo/CB/nZFibgZ6YgQ8Ak/h5d3cHRH2YHQE6Szqi9+jYn/+99xLzQTfu6fF4uV2xw7BJ+O6UKvvJhYQMS/LUV14xmWfwJxJX/4lUh3Yc58kWZp4GSTpdyMByU/ejrvsrDkbzmjwu/TgSrAADfMxBMnVHkLhg9hhCmYDAtlY79OxMPt5WQtIZcZJbBJNW5d6fuOM6dEvw7p3Qu/QNhgEbYXYnlW+izPVhcuqe2YvmnnLKYERPSQS4VAsZhboRilmCotfJXxSC7Uf4oDbRdBxnZRvwC6vssj3tIiBY9sHXSFZyOH1d0MhmrQzwt09L0GrMgdthVPdhWW/V19pvhFnV8UNpanJXy09IiuCrJsKYz7k4YfPiCJppPU9xXMcYyZ9QOLKDmPZbUpEySZAPf77AaeUnp6xcDb9zF7+iOx4xjw3ZzMuCQfWhefu7kLOPHml+OukupmPCP6jyQ== ndtrung@fedora')
+
+        # Initialize Azure management clients
+        subscription_id = self.account['subscription_id']
+        resource_client = ResourceManagementClient(self.credentials, subscription_id)
+        network_client = NetworkManagementClient(self.credentials, subscription_id)
+        compute_client = ComputeManagementClient(self.credentials, subscription_id)
+
+        sizes = self.driver.list_sizes(location=location)
+        size = next((s for s in sizes if s.name == size_name), None)
+        if size is None:
+            raise ValueError(f"Size '{size_name}' not found.")
+
+        # select an image
+        publisher = 'Canonical'
+        offer = 'UbuntuServer'
+        sku = '18.04-LTS'
+        version = 'latest'
+        image = AzureImage(version=version, publisher=publisher, sku=sku, offer=offer, driver=self.driver, location=location)
+
+        # Step 2: Create a resource group if it doesn't exist    
+        # resource group is already created on the subscription (could move to account)
+        resource_group_name = self.account['resource_group']   #"rg_skyway"
+        resource_client.resource_groups.create_or_update(resource_group_name, {"location": location_name})
+
+        # then for each node in the list
         for node_name in node_names:
-            location_name = 'East US'  # Replace with your desired location
-            locations = self.driver.list_locations()
-            location = next((loc for loc in locations if loc.name == location_name), None)
-            if location is None:
-                raise ValueError(f"Location '{location_name}' not found.")
-
-            # authentication with public key on this machine per-user (id_rsa_azure.pub)
-            # need to read in from ~/.ssh/id_rsa_azure.pub from the account .yaml file
-            auth = NodeAuthSSHKey('ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDXzS0IuhNV3EyNkUXRV0yML0Fi+r+7qkqQqC7Ahe239ct3wwj1uwFnHo6UxF7zH7i33rtP/0YX5aV0l1fxp/7S3pF7Y0ZQDYryW15DxDxxjHkbNEssZjQ0XYWtf6g6VD5v8UWZAFvctqytbE2f39xDRimvifQMh8ogG45zRquKfuZ1vmtT/ls/7iW4cRtVjXNhN+lEmggZ+183akqDE0OJ01SM0aVNULxo/CB/nZFibgZ6YgQ8Ak/h5d3cHRH2YHQE6Szqi9+jYn/+99xLzQTfu6fF4uV2xw7BJ+O6UKvvJhYQMS/LUV14xmWfwJxJX/4lUh3Yc58kWZp4GSTpdyMByU/ejrvsrDkbzmjwu/TgSrAADfMxBMnVHkLhg9hhCmYDAtlY79OxMPt5WQtIZcZJbBJNW5d6fuOM6dEvw7p3Qu/QNhgEbYXYnlW+izPVhcuqe2YvmnnLKYERPSQS4VAsZhboRilmCotfJXxSC7Uf4oDbRdBxnZRvwC6vssj3tIiBY9sHXSFZyOH1d0MhmrQzwt09L0GrMgdthVPdhWW/V19pvhFnV8UNpanJXy09IiuCrJsKYz7k4YfPiCJppPU9xXMcYyZ9QOLKDmPZbUpEySZAPf77AaeUnp6xcDb9zF7+iOx4xjw3ZzMuCQfWhefu7kLOPHml+OukupmPCP6jyQ== ndtrung@fedora')
-
-            # Initialize Azure management clients
-            subscription_id = self.account['subscription_id']
-            resource_client = ResourceManagementClient(self.credentials, subscription_id)
-            network_client = NetworkManagementClient(self.credentials, subscription_id)
-            compute_client = ComputeManagementClient(self.credentials, subscription_id)
-
-            sizes = self.driver.list_sizes(location=location)
-            size = next((s for s in sizes if s.name == size_name), None)
-            if size is None:
-                raise ValueError(f"Size '{size_name}' not found.")
-
-            # select an image
-            publisher = 'Canonical'
-            offer = 'UbuntuServer'
-            sku = '18.04-LTS'
-            version = 'latest'
-            image = AzureImage(version=version, publisher=publisher, sku=sku, offer=offer, driver=self.driver, location=location)
-
-            # Step 2: Create a resource group if it doesn't exist    
-            # resource group is already created on the subscription (could move to account)
-            resource_group_name = self.account['resource_group']   #"rg_skyway"
-            resource_client.resource_groups.create_or_update(resource_group_name, {"location": location_name})
-
+            
             # Step 3: Create Virtual Network and Subnet if they don't exist
             vnet_name = "vnet-{}-{}".format(user_name, node_name)
             subnet_name = "subnet-{}-{}".format(user_name, node_name)
@@ -189,6 +200,7 @@ class AZURE(Cloud):
 
             # Step 5: Create the instance          
             try:
+                tags = { node_name, user_name }
                 node = self.driver.create_node(name=node_name,
                                                size=size,
                                                image=image,
@@ -196,13 +208,23 @@ class AZURE(Cloud):
                                                location=location,
                                                ex_resource_group=resource_group_name,
                                                ex_nic=network_interface,
-                                               ex_use_managed_disks=True)
+                                               ex_use_managed_disks=True,
+                                               ex_tags = tags)
             except Exception as ex:
                 logging.info("Failed to create %s. Reason: %s" % (node_name, str(ex)))
 
             node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
             creation_time_str = node.extra.get('properties')['timeCreated']
             nodes[node_name] = [str(node.id), node_type, creation_time_str]
+
+            # ssh to the node and execute a shutdown command scheduled for walltime
+            '''
+            host = node.public_ips[0]
+            user_name = os.environ['USER']
+            print("Connecting to host: " + host)          
+            cmd = f"ssh  {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
+            os.system(cmd)
+            '''
 
         return nodes
 

@@ -63,155 +63,6 @@ class GCP(Cloud):
         
         assert(self.driver != False)
         return
-    
-    def list_nodes(self, verbose=False):
-        """Member function: list_nodes
-        Get a list of all existed instances
-        
-        Return: a list of multiple turple. Each turple has four elements:
-                (1) instance name (2) state (3) type (4) identifier
-        """
-        nodes = []
-        current_time = datetime.now(timezone.utc)
-        for node in self.driver.list_nodes():
-
-            # Get the creation time of the instance
-            creation_time_str = node.extra.get('creationTimestamp')  # GCP
-            if creation_time_str:
-                # Convert the creation time from string to datetime object
-                creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
-                
-                # Calculate the running time
-                running_time = current_time - creation_time               
-                nodes.append([node.name, node.state, node.size, node.public_ips[0], running_time])
-
-        if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Host', 'Running Time']))
-            print("")
-
-        return nodes
-    
-    def create_nodes(self, node_type: str, node_names = []):
-        """Member function: create_compute
-        Create a group of compute instances(nodes, servers, virtual-machines 
-        ...) with the given type.
-        
-         - node_type: instance type information from the Skyway definitions
-         - node_names: a list of names for the nodes, to get the number of nodes
-        
-        Return: a dictionary of instance ID (i.e., names) for created instances.
-        """
-        user_name = os.environ['USER']
-        user_budget = self.get_budget(user_name=user_name, verbose=False)
-        print(f"User budget: ${user_budget}")
-        unit_price = self.vendor['node-types'][node_type]['price']
-        response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
-        if response == 'n':
-            return
-
-        count = len(node_names)
-        if count <= 0:
-            raise Exception(f'List of node names is empty.')
-        
-        location_name = self.vendor['location'] + '-c'
-        locations = self.driver.list_locations()
-        location = next((loc for loc in locations if loc.name == location_name), None)
-        if location is None:
-            raise ValueError(f"Location '{location_name}' not found.")
-        
-        nodes = {}
-        node_cfg = self.vendor['node-types'][node_type]
-        preemptible = node_cfg['preemptible'] if 'preemptible' in node_cfg else False
-
-        scopes = [
-            'https://www.googleapis.com/auth/devstorage.read_only',
-            'https://www.googleapis.com/auth/logging.write',
-            'https://www.googleapis.com/auth/monitoring.write',
-            'https://www.googleapis.com/auth/servicecontrol',
-            'https://www.googleapis.com/auth/service.management.readonly',
-            'https://www.googleapis.com/auth/trace.append'
-        ]
-        network = 'vpc1'      # get this from ex_list_networks()
-        subnets = self.driver.ex_list_subnetworks()
-        subnet = next((sub for sub in subnets if sub.name == location_name), None)
-
-        for node_name in node_names:
-            gpu_type = None
-            gpu_count = None           
-            if 'gpu' in node_cfg:
-                gpu_type = node_cfg['gpu-type']
-                gpu_count = node_cfg['gpu']
-
-            try:
-                node = self.driver.create_node(node_name,
-                                               size = node_cfg['name'],
-                                               image = self.account['image_name'], 
-                                               location = location,
-                                               ex_network=network,
-                                               ex_subnetwork=subnet,
-                                               ex_service_accounts=[{
-                                                   'email': self.account['service_account'],
-                                                   'scopes': scopes
-                                               }],
-                                               ex_labels={'goog-ec-src': 'vm_add-gcloud'},
-                                               ex_preemptible = preemptible,
-                                               ex_accelerator_type = gpu_type,
-                                               ex_accelerator_count = gpu_count,
-                                               ex_on_host_maintenance = 'TERMINATE')
-                self.driver.wait_until_running([node])
-
-                # record node_type, creation time
-                creation_time_str = node.extra.get('creationTimestamp') 
-                node_type = node_cfg['name']
-                nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
-
-                print(f'Created instance: {node.name}')
-            except Exception as ex:
-                logging.info("Failed to create %s. Reason: %s" % (node_name, str(ex)))
-        
-        return nodes
-
-    def connect_node(self, node_name):
-        """
-        Connect to an instance using account's pem file
-        [account_name].pem file should be under $SKYWAYROOT/etc/accounts
-        It is important to create the node using the account's key-name.
-
-        To be able to ssh into the instance, we need to add the public key of the machine
-        (user pub key on midway3, or on their local box) to the GCP account
-        and then on GCP console of the Project, Compute Engine, Metadata, SSH Keys, Add Item,
-        copy the public key of the machine into the key.
-        Alternatively, use deploy_node with metadata with a public/private key pair,
-        but still it requires keygen-ssh for the user on the local machine/login node.
-
-        """
-        node = self.driver.ex_get_node(node_name)
-        host = node.public_ips[0]
-        user_name = os.environ['USER']
-        print("Connecting to host: " + host)
-        cmd = 'ssh ' + user_name + '@' + host
-        os.system(cmd)
-        return
-
-
-    def destroy_nodes(self, node_names):
-        '''
-        Destroy all the nodes (instances) given the list of node names
-        NOTE: should store the running cost and time before terminating the node(s)
-        node_names = list of node names as strings
-        '''
-        if isinstance(node_names, str): node_names = [node_names]
-
-        for name in node_names:
-            try:
-                node = self.driver.ex_get_node(name)
-                if node.name == name:
-                    response = input(f"Do you want to destroy {node.name}? (y/n) ")
-                    if response == 'y':
-                        self.driver.destroy_node(node)
-            except:
-                continue
-        return
 
     def check_valid_user(self, user_name, verbose=False):
         if user_name not in self.users:
@@ -270,7 +121,177 @@ class GCP(Cloud):
             user_info.append([user, self.users[user]['budget']])
         print(tabulate(user_info, headers=['User', 'Budget']))
         print("") 
+
+    def list_nodes(self, verbose=False):
+        """Member function: list_nodes
+        Get a list of all existed instances
+        
+        Return: a list of multiple turple. Each turple has four elements:
+                (1) instance name (2) state (3) type (4) identifier
+        """
+        nodes = []
+        current_time = datetime.now(timezone.utc)
+        for node in self.driver.list_nodes():
+
+            # Get the creation time of the instance
+            creation_time_str = node.extra.get('creationTimestamp')  # GCP
+            if creation_time_str:
+                # Convert the creation time from string to datetime object
+                creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
+                
+                # Calculate the running time
+                running_time = current_time - creation_time               
+                nodes.append([node.name, node.state, node.size, node.public_ips[0], running_time])
+
+        if verbose == True:
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Host', 'Running Time']))
+            print("")
+
+        return nodes
     
+    def create_nodes(self, node_type: str, node_names = [], walltime = None):
+        """Member function: create_compute
+        Create a group of compute instances(nodes, servers, virtual-machines 
+        ...) with the given type.
+        
+         - node_type: instance type information from the Skyway definitions
+         - node_names: a list of names for the nodes, to get the number of nodes
+        
+        Return: a dictionary of instance ID (i.e., names) for created instances.
+        """
+        user_name = os.environ['USER']
+        user_budget = self.get_budget(user_name=user_name, verbose=False)
+        print(f"User budget: ${user_budget}")
+        unit_price = self.vendor['node-types'][node_type]['price']
+        response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
+        if response == 'n':
+            return
+
+        count = len(node_names)
+        if count <= 0:
+            raise Exception(f'List of node names is empty.')
+        
+        location_name = self.vendor['location'] + '-c'
+        locations = self.driver.list_locations()
+        location = next((loc for loc in locations if loc.name == location_name), None)
+        if location is None:
+            raise ValueError(f"Location '{location_name}' not found.")
+        
+        nodes = {}
+        node_cfg = self.vendor['node-types'][node_type]
+        preemptible = node_cfg['preemptible'] if 'preemptible' in node_cfg else False
+
+        scopes = [
+            'https://www.googleapis.com/auth/devstorage.read_only',
+            'https://www.googleapis.com/auth/logging.write',
+            'https://www.googleapis.com/auth/monitoring.write',
+            'https://www.googleapis.com/auth/servicecontrol',
+            'https://www.googleapis.com/auth/service.management.readonly',
+            'https://www.googleapis.com/auth/trace.append'
+        ]
+        network = 'vpc1'      # get this from ex_list_networks()
+        subnets = self.driver.ex_list_subnetworks()
+        subnet = next((sub for sub in subnets if sub.name == location_name), None)
+
+        if walltime is None:
+            walltime_str = "00:05:00"
+        else:
+            walltime_str = walltime
+
+        # shutdown the instance after the walltime (in minutes)
+        pt = datetime.datetime(walltime_str, "%H:%M:%S")
+        walltime_in_minutes = pt.hour * 60 + pt.minute + pt.second/60
+
+        for node_name in node_names:
+            gpu_type = None
+            gpu_count = None           
+            if 'gpu' in node_cfg:
+                gpu_type = node_cfg['gpu-type']
+                gpu_count = node_cfg['gpu']
+
+            try:
+
+                tags = { node_name, user_name }
+                node = self.driver.create_node(node_name,
+                                               size = node_cfg['name'],
+                                               image = self.account['image_name'], 
+                                               location = location,
+                                               ex_network=network,
+                                               ex_subnetwork=subnet,
+                                               ex_service_accounts=[{
+                                                   'email': self.account['service_account'],
+                                                   'scopes': scopes
+                                               }],
+                                               ex_labels={'goog-ec-src': 'vm_add-gcloud'},
+                                               ex_preemptible = preemptible,
+                                               ex_accelerator_type = gpu_type,
+                                               ex_accelerator_count = gpu_count,
+                                               ex_on_host_maintenance = 'TERMINATE',
+                                               ex_tags = tags,)
+                self.driver.wait_until_running([node])
+
+                # record node_type, creation time
+                creation_time_str = node.extra.get('creationTimestamp') 
+                node_type = node_cfg['name']
+                nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
+
+                print(f'Created instance: {node.name}')
+
+                # ssh to the node and execute a shutdown command scheduled for walltime
+                host = node.public_ips[0]
+                user_name = os.environ['USER']
+                print("Connecting to host: " + host)
+
+                cmd = f"ssh  {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
+                os.system(cmd)
+
+            except Exception as ex:
+                logging.info("Failed to create %s. Reason: %s" % (node_name, str(ex)))
+        
+        return nodes
+
+    def connect_node(self, node_name):
+        """
+        Connect to an instance using account's pem file
+        [account_name].pem file should be under $SKYWAYROOT/etc/accounts
+        It is important to create the node using the account's key-name.
+
+        To be able to ssh into the instance, we need to add the public key of the machine
+        (user pub key on midway3, or on their local box) to the GCP account
+        and then on GCP console of the Project, Compute Engine, Metadata, SSH Keys, Add Item,
+        copy the public key of the machine into the key.
+        Alternatively, use deploy_node with metadata with a public/private key pair,
+        but still it requires keygen-ssh for the user on the local machine/login node.
+
+        """
+        node = self.driver.ex_get_node(node_name)
+        host = node.public_ips[0]
+        user_name = os.environ['USER']
+        print("Connecting to host: " + host)
+        cmd = 'ssh ' + user_name + '@' + host
+        os.system(cmd)
+        return
+
+
+    def destroy_nodes(self, node_names):
+        '''
+        Destroy all the nodes (instances) given the list of node names
+        NOTE: should store the running cost and time before terminating the node(s)
+        node_names = list of node names as strings
+        '''
+        if isinstance(node_names, str): node_names = [node_names]
+
+        for name in node_names:
+            try:
+                node = self.driver.ex_get_node(name)
+                if node.name == name:
+                    response = input(f"Do you want to destroy {node.name}? (y/n) ")
+                    if response == 'y':
+                        self.driver.destroy_node(node)
+            except:
+                continue
+        return
+   
     def get_running_nodes(self, verbose=False):
         """Member function: running_nodes
         Return identifiers of all running instances
