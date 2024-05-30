@@ -95,14 +95,20 @@ class AWS(Cloud):
         
         for instance in instances:
             if instance.state['Name'] != 'terminated':
+                running_time = datetime.now(timezone.utc) - instance.launch_time
+                instance_unit_cost = self.get_unit_price(instance)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
                 nodes.append([self.get_instance_name(instance),
                               instance.state['Name'], 
                               instance.instance_type, 
                               instance.instance_id,
-                              instance.public_ip_address])
+                              instance.public_ip_address,
+                              running_time,
+                              running_cost])
         
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host']))
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
         return nodes
 
@@ -170,8 +176,8 @@ class AWS(Cloud):
             walltime_str = walltime
 
         # shutdown the instance after the walltime (in minutes)
-        pt = datetime.datetime(walltime_str, "%H:%M:%S")
-        walltime_in_minutes = pt.hour * 60 + pt.minute + pt.second/60
+        pt = datetime.strptime(walltime_str, "%H:%M:%S")
+        walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
         for inode, instance in enumerate(instances):
             instance.load()
@@ -218,7 +224,7 @@ class AWS(Cloud):
         #print(f"{cmd}")
         os.system(cmd)
 
-    def destroy_nodes(self, node_names):
+    def destroy_nodes(self, node_names=None, IDs=None):
         """Member function: destroy nodes
         Destroy all the nodes (instances) given the list of node names
                  - node_names: a list of node names to be destroyed
@@ -229,32 +235,62 @@ class AWS(Cloud):
                   if self.get_instance_name(instance) in self.account['protected_nodes']:
                       continue
         """
-        if isinstance(node_names, str): node_names = [node_names]
         
-        instances = []
-        for name in node_names:
-            if name in self.account['protected_nodes']:
-                continue
-            
-            all_instances = self.get_instances()
-            instance = next((inst for inst in all_instances if self.get_instance_name(inst) == name), None)
-            if instance is None:
-                raise ValueError(f"Instance '{name}' not found.")
-            
-            running_time = datetime.now(timezone.utc) - instance.launch_time
-            instance_unit_cost = self.get_unit_price(instance)
-            running_cost = running_time.seconds/3600.0 * instance_unit_cost
+        if node_names is None and IDs is None:
+            raise ValueError(f"node_names and IDs cannot be both empty.")
 
-            response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
-            if response == 'y':
-                # record the running time and cost
+        instances = []
+        if node_names is not None:
+            if isinstance(node_names, str): node_names = [node_names]
+            for name in node_names:
+                if name in self.account['protected_nodes']:
+                    continue
+                
+                running_instances = self.get_instances(filters = [{
+                    "Name" : "instance-state-name",
+                    "Values" : ["running"]
+                }])
+                
+                instance = next((inst for inst in running_instances if self.get_instance_name(inst) == name), None)
+                if instance is None:
+                    raise ValueError(f"Instance '{name}' not found.")
+
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                instance.terminate()
-                instances.append(instance)
-        
+                response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
+                if response == 'y':
+                    # record the running time and cost
+                    running_time = datetime.now(timezone.utc) - instance.launch_time
+                    instance_unit_cost = self.get_unit_price(instance)
+                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+                    instance.terminate()
+                    instances.append(instance)
+        else:
+            for ID in IDs:
+                instance = self.ec2.Instance(ID)
+                if self.get_instance_name(instance) in self.account['protected_nodes']:
+                    continue
+                if instance is None:
+                    raise ValueError(f"Instance '{instance.name}' not found.")
+
+                running_time = datetime.now(timezone.utc) - instance.launch_time
+                instance_unit_cost = self.get_unit_price(instance)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+                response = input(f"Do you want to terminate the node {instance.name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
+                if response == 'y':
+                    # record the running time and cost
+                    running_time = datetime.now(timezone.utc) - instance.launch_time
+                    instance_unit_cost = self.get_unit_price(instance)
+                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+                    instance.terminate()
+                    instances.append(instance)
+
+
         for instance in instances:
             instance.wait_until_terminated()
 

@@ -57,13 +57,13 @@ user = os.environ['USER']
 
 # create 1 node (instance)
 #nodes = account.create_nodes('c1',['node1'])
-nodes = account.create_nodes('t1',['node1'])
+#nodes = account.create_nodes('t1',['node1'],walltime="00:05:00")
 #account.get_all_images()
 
 # list all the nodes (instances)
-nodes = account.list_nodes(verbose=True)
+#nodes = account.list_nodes(verbose=True)
 
-#nodes = account.get_running_nodes(verbose=True)
+nodes = account.get_running_nodes(verbose=True)
 
 # connect to an instance via SSH
 # NOTE: 
@@ -82,7 +82,7 @@ nodes = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-#account.destroy_nodes(['node1'])
+#account.destroy_nodes(node_names=['node1'])
 
 
 

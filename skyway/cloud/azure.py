@@ -75,7 +75,7 @@ class AZURE(Cloud):
         
         Return: a list of multiple turple. Each turple has four elements:
                 (1) instance name (2) state (3) type (4) running time
-                node.id is not particular useful
+                node.id is useful for destroying
         """
         nodes = []
         current_time = datetime.now(timezone.utc)
@@ -124,8 +124,8 @@ class AZURE(Cloud):
             walltime_str = walltime
 
         # shutdown the instance after the walltime (in minutes)
-        pt = datetime.datetime(walltime_str, "%H:%M:%S")
-        walltime_in_minutes = pt.hour * 60 + pt.minute + pt.second/60
+        pt = datetime.strptime(walltime_str, "%H:%M:%S")
+        walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
         location_name = 'East US'  # Replace with your desired location
         locations = self.driver.list_locations()
@@ -134,7 +134,7 @@ class AZURE(Cloud):
             raise ValueError(f"Location '{location_name}' not found.")
 
         # authentication with public key on this machine per-user (id_rsa_azure.pub)
-        # need to read in from ~/.ssh/id_rsa_azure.pub from the account .yaml file  
+        # need to read in from ~/.ssh/id_rsa_azure.pub from the account .yaml file
         auth = NodeAuthSSHKey('ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDXzS0IuhNV3EyNkUXRV0yML0Fi+r+7qkqQqC7Ahe239ct3wwj1uwFnHo6UxF7zH7i33rtP/0YX5aV0l1fxp/7S3pF7Y0ZQDYryW15DxDxxjHkbNEssZjQ0XYWtf6g6VD5v8UWZAFvctqytbE2f39xDRimvifQMh8ogG45zRquKfuZ1vmtT/ls/7iW4cRtVjXNhN+lEmggZ+183akqDE0OJ01SM0aVNULxo/CB/nZFibgZ6YgQ8Ak/h5d3cHRH2YHQE6Szqi9+jYn/+99xLzQTfu6fF4uV2xw7BJ+O6UKvvJhYQMS/LUV14xmWfwJxJX/4lUh3Yc58kWZp4GSTpdyMByU/ejrvsrDkbzmjwu/TgSrAADfMxBMnVHkLhg9hhCmYDAtlY79OxMPt5WQtIZcZJbBJNW5d6fuOM6dEvw7p3Qu/QNhgEbYXYnlW+izPVhcuqe2YvmnnLKYERPSQS4VAsZhboRilmCotfJXxSC7Uf4oDbRdBxnZRvwC6vssj3tIiBY9sHXSFZyOH1d0MhmrQzwt09L0GrMgdthVPdhWW/V19pvhFnV8UNpanJXy09IiuCrJsKYz7k4YfPiCJppPU9xXMcYyZ9QOLKDmPZbUpEySZAPf77AaeUnp6xcDb9zF7+iOx4xjw3ZzMuCQfWhefu7kLOPHml+OukupmPCP6jyQ== ndtrung@fedora')
 
         # Initialize Azure management clients

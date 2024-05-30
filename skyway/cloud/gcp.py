@@ -199,8 +199,8 @@ class GCP(Cloud):
             walltime_str = walltime
 
         # shutdown the instance after the walltime (in minutes)
-        pt = datetime.datetime(walltime_str, "%H:%M:%S")
-        walltime_in_minutes = pt.hour * 60 + pt.minute + pt.second/60
+        pt = datetime.strptime(walltime_str, "%H:%M:%S")
+        walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
         for node_name in node_names:
             gpu_type = None
