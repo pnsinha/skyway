@@ -7,6 +7,7 @@
 Documentation for AWS Class
 """
 import os
+import io
 from tabulate import tabulate
 from .core import Cloud
 from .. import utils
@@ -107,10 +108,15 @@ class AWS(Cloud):
                               running_time,
                               running_cost])
         
+        output_str = ''
         if verbose == True:
             print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
-        return nodes
+        else:
+            output_str = io.StringIO()
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print("", file=output_str)
+        return nodes, output_str
 
     def create_nodes(self, node_type: str, node_names = [], walltime = None):
         """Member function: create_compute
@@ -280,7 +286,7 @@ class AWS(Cloud):
                 instance_unit_cost = self.get_unit_price(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                response = input(f"Do you want to terminate the node {instance.name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
+                response = input(f"Do you want to terminate the node {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
                 if response == 'y':
                     # record the running time and cost
                     running_time = datetime.now(timezone.utc) - instance.launch_time
@@ -440,6 +446,14 @@ class AWS(Cloud):
             if self.vendor['node-types'][node_type]['name'] == instance.instance_type:
                 unit_price = self.vendor['node-types'][node_type]['price']
                 return unit_price
+        return -1.0
+
+    def get_unit_price(self, node_type: str):
+        """
+        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        """
+        if node_type in self.vendor['node-types']:
+            return self.vendor['node-types'][node_type]['price']
         return -1.0
 
     def get_running_cost(self):

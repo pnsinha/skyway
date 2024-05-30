@@ -407,6 +407,14 @@ class AZURE(Cloud):
                 unit_price = self.vendor['node-types'][node_type]['price']
                 return unit_price
 
+    def get_unit_price(self, node_type: str):
+        """
+        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        """
+        if node_type in self.vendor['node-types']:
+            return self.vendor['node-types'][node_type]['price']
+        return -1.0
+
     def get_host_ip(self, node_name):
         pass
 
