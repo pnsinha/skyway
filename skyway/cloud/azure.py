@@ -43,6 +43,11 @@ class AZURE(Cloud):
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
 
+        public_key_file = self.account['public_key']
+        with open(public_key_file, "r") as f:
+            content = f.read()
+            self.public_key = content.strip()
+
         # load cloud.yaml under $SKYWAYROOT/etc/
         path = os.environ['SKYWAYROOT'] + '/etc/'
         vendor_cfg = utils.load_config('cloud', path)
@@ -105,14 +110,15 @@ class AZURE(Cloud):
             print("")
 
 
-    def create_nodes(self, node_type: str, node_names = [], walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
-        print(f"User budget: ${user_budget}")
         unit_price = self.vendor['node-types'][node_type]['price']
-        response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
-        if response == 'n':
-            return
+        if need_confirmation == True:
+            print(f"User budget: ${user_budget}")
+            response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
+            if response == 'n':
+                return
 
         nodes = {}
         node_cfg = self.vendor['node-types'][node_type]
@@ -135,7 +141,7 @@ class AZURE(Cloud):
 
         # authentication with public key on this machine per-user (id_rsa_azure.pub)
         # need to read in from ~/.ssh/id_rsa_azure.pub from the account .yaml file
-        auth = NodeAuthSSHKey('ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDXzS0IuhNV3EyNkUXRV0yML0Fi+r+7qkqQqC7Ahe239ct3wwj1uwFnHo6UxF7zH7i33rtP/0YX5aV0l1fxp/7S3pF7Y0ZQDYryW15DxDxxjHkbNEssZjQ0XYWtf6g6VD5v8UWZAFvctqytbE2f39xDRimvifQMh8ogG45zRquKfuZ1vmtT/ls/7iW4cRtVjXNhN+lEmggZ+183akqDE0OJ01SM0aVNULxo/CB/nZFibgZ6YgQ8Ak/h5d3cHRH2YHQE6Szqi9+jYn/+99xLzQTfu6fF4uV2xw7BJ+O6UKvvJhYQMS/LUV14xmWfwJxJX/4lUh3Yc58kWZp4GSTpdyMByU/ejrvsrDkbzmjwu/TgSrAADfMxBMnVHkLhg9hhCmYDAtlY79OxMPt5WQtIZcZJbBJNW5d6fuOM6dEvw7p3Qu/QNhgEbYXYnlW+izPVhcuqe2YvmnnLKYERPSQS4VAsZhboRilmCotfJXxSC7Uf4oDbRdBxnZRvwC6vssj3tIiBY9sHXSFZyOH1d0MhmrQzwt09L0GrMgdthVPdhWW/V19pvhFnV8UNpanJXy09IiuCrJsKYz7k4YfPiCJppPU9xXMcYyZ9QOLKDmPZbUpEySZAPf77AaeUnp6xcDb9zF7+iOx4xjw3ZzMuCQfWhefu7kLOPHml+OukupmPCP6jyQ== ndtrung@fedora')
+        auth = NodeAuthSSHKey(self.public_key)
 
         # Initialize Azure management clients
         subscription_id = self.account['subscription_id']
@@ -231,7 +237,7 @@ class AZURE(Cloud):
     def connect_node(self, node_name):
         pass
 
-    def destroy_nodes(self, node_names):
+    def destroy_nodes(self, node_names, need_confirmation=True):
         '''
         Destroy all the nodes given the list of node names
         NOTE: should store the running cost and time before terminating the node(s)
@@ -259,51 +265,54 @@ class AZURE(Cloud):
             running_time = datetime.now(timezone.utc) - creation_time
             # get the node type
             node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
-            instance_unit_cost = self.get_unit_price(node)
+            instance_unit_cost = self.get_unit_price_instance(node)
             running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-            response = input(f"Do you want to destroy {node.name} (running cost ${running_cost:0.5f})? (y/n) ")
-            if response == 'y':
-                # order to destroy: VM, IP, NIC, VNET
-                self.driver.destroy_node(node)
+            if need_confirmation == True:
+                response = input(f"Do you want to destroy {node.name} (running cost ${running_cost:0.5f})? (y/n) ")
+                if response != 'y':
+                    continue
 
-                # there might be resources leftover: IP, NIC and VNET
-                subscription_id = self.account['subscription_id']
-                resource_client = ResourceManagementClient(self.credentials, subscription_id)
+            # order to destroy: VM, IP, NIC, VNET
+            self.driver.destroy_node(node)
 
-                resource_group_name = self.account['resource_group']
-                public_ip_name = "my_public_ip-{}-{}".format(user_name, name)
-                nic_name = "my-nic-{}".format(user_name, name)
-                vnet_name = "vnet-{}-{}".format(user_name, name)
+            # there might be resources leftover: IP, NIC and VNET
+            subscription_id = self.account['subscription_id']
+            resource_client = ResourceManagementClient(self.credentials, subscription_id)
 
-                # 2022-11-01 is the API version, may change
-                API_VERSION = "2022-11-01"
-                ip_delete = resource_client.resources.begin_delete_by_id(
-                                    "/subscriptions/{}/resourceGroups/{}/providers/{}/{}/{}".format(
-                                    subscription_id,
-                                    resource_group_name,
-                                    "Microsoft.Network",
-                                    "publicIPAddresses",
-                                    public_ip_name), API_VERSION)
-                ip_delete.wait()
-    
-                nic_delete = resource_client.resources.begin_delete_by_id(
-                                    "/subscriptions/{}/resourceGroups/{}/providers/{}/{}/{}".format(
-                                    subscription_id,
-                                    resource_group_name,
-                                    "Microsoft.Network",
-                                    "networkInterfaces",
-                                    nic_name), API_VERSION)
-                nic_delete.wait()
+            resource_group_name = self.account['resource_group']
+            public_ip_name = "my_public_ip-{}-{}".format(user_name, name)
+            nic_name = "my-nic-{}".format(user_name, name)
+            vnet_name = "vnet-{}-{}".format(user_name, name)
 
-                vnet_delete = resource_client.resources.begin_delete_by_id(
-                                    "/subscriptions/{}/resourceGroups/{}/providers/{}/{}/{}".format(
-                                    subscription_id,
-                                    resource_group_name,
-                                    "Microsoft.Network",
-                                    "virtualNetworks",
-                                    vnet_name), API_VERSION)
-                vnet_delete.wait()
+            # 2022-11-01 is the API version, may change
+            API_VERSION = "2022-11-01"
+            ip_delete = resource_client.resources.begin_delete_by_id(
+                                "/subscriptions/{}/resourceGroups/{}/providers/{}/{}/{}".format(
+                                subscription_id,
+                                resource_group_name,
+                                "Microsoft.Network",
+                                "publicIPAddresses",
+                                public_ip_name), API_VERSION)
+            ip_delete.wait()
+
+            nic_delete = resource_client.resources.begin_delete_by_id(
+                                "/subscriptions/{}/resourceGroups/{}/providers/{}/{}/{}".format(
+                                subscription_id,
+                                resource_group_name,
+                                "Microsoft.Network",
+                                "networkInterfaces",
+                                nic_name), API_VERSION)
+            nic_delete.wait()
+
+            vnet_delete = resource_client.resources.begin_delete_by_id(
+                                "/subscriptions/{}/resourceGroups/{}/providers/{}/{}/{}".format(
+                                subscription_id,
+                                resource_group_name,
+                                "Microsoft.Network",
+                                "virtualNetworks",
+                                vnet_name), API_VERSION)
+            vnet_delete.wait()
 
     def check_valid_user(self, user_name, verbose=False):
         if user_name not in self.users:
@@ -396,9 +405,9 @@ class AZURE(Cloud):
             print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Running Time']))
             print("")
 
-    def get_unit_price(self, node):
+    def get_unit_price_instance(self, node):
         """
-        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro) from the cloud.yaml file
         """
         for node_type in self.vendor['node-types']:
             vmtype = node.extra.get('properties')['hardwareProfile']['vmSize']
@@ -409,7 +418,7 @@ class AZURE(Cloud):
 
     def get_unit_price(self, node_type: str):
         """
-        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        Get the per-hour price of an instance depending on its instance_type (e.g. t1) from the cloud.yaml file
         """
         if node_type in self.vendor['node-types']:
             return self.vendor['node-types'][node_type]['price']
@@ -454,7 +463,7 @@ class AZURE(Cloud):
                     # get the node type
                     node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
 
-                    instance_unit_cost = self.get_unit_price(node)
+                    instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
                     nodes.append([node.name, node_type, running_time, running_cost])

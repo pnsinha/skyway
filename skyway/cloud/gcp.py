@@ -149,7 +149,7 @@ class GCP(Cloud):
 
         return nodes
     
-    def create_nodes(self, node_type: str, node_names = [], walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
@@ -161,11 +161,12 @@ class GCP(Cloud):
         """
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
-        print(f"User budget: ${user_budget}")
         unit_price = self.vendor['node-types'][node_type]['price']
-        response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
-        if response == 'n':
-            return
+        if need_confirmation == True:
+            print(f"User budget: ${user_budget}")
+            response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
+            if response == 'n':
+                return
 
         count = len(node_names)
         if count <= 0:
@@ -273,7 +274,7 @@ class GCP(Cloud):
         return
 
 
-    def destroy_nodes(self, node_names):
+    def destroy_nodes(self, node_names, need_confirmation=True):
         '''
         Destroy all the nodes (instances) given the list of node names
         NOTE: should store the running cost and time before terminating the node(s)
@@ -285,9 +286,11 @@ class GCP(Cloud):
             try:
                 node = self.driver.ex_get_node(name)
                 if node.name == name:
-                    response = input(f"Do you want to destroy {node.name}? (y/n) ")
-                    if response == 'y':
-                        self.driver.destroy_node(node)
+                    if need_confirmation == True:
+                        response = input(f"Do you want to destroy {node.name}? (y/n) ")
+                        if response != 'y':
+                            continue
+                    self.driver.destroy_node(node)
             except:
                 continue
         return
@@ -319,7 +322,7 @@ class GCP(Cloud):
 
         return nodes
     
-    def get_unit_price(self, node):
+    def get_unit_price_instance(self, node):
         """
         Get the per-hour price of an instance depending on its instance_type (e.g. n1-standard-1)
         For GCE, node.size is the instance type.
@@ -333,7 +336,7 @@ class GCP(Cloud):
 
     def get_unit_price(self, node_type: str):
         """
-        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        Get the per-hour price of an instance depending on its instance_type (e.g. t1)
         """
         if node_type in self.vendor['node-types']:
             return self.vendor['node-types'][node_type]['price']
@@ -378,7 +381,7 @@ class GCP(Cloud):
                     # Calculate the running time
                     running_time = current_time - creation_time
 
-                    instance_unit_cost = self.get_unit_price(node)
+                    instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
                     nodes.append([node.name, node.size, node.id, node.public_ips[0], running_time, running_cost])

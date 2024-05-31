@@ -97,8 +97,9 @@ class AWS(Cloud):
         for instance in instances:
             if instance.state['Name'] != 'terminated':
                 running_time = datetime.now(timezone.utc) - instance.launch_time
-                instance_unit_cost = self.get_unit_price(instance)
-                running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                
+                instance_unit_cost = self.get_unit_price_instance(instance)
+                running_cost = running_time.total_seconds()/3600.0 * instance_unit_cost
 
                 nodes.append([self.get_instance_name(instance),
                               instance.state['Name'], 
@@ -118,7 +119,7 @@ class AWS(Cloud):
             print("", file=output_str)
         return nodes, output_str
 
-    def create_nodes(self, node_type: str, node_names = [], walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
@@ -130,11 +131,12 @@ class AWS(Cloud):
         """
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
-        print(f"User budget: ${user_budget}")
         unit_price = self.vendor['node-types'][node_type]['price']
-        response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
-        if response == 'n':
-            return
+        if need_confirmation == True:
+            print(f"User budget: ${user_budget}")
+            response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
+            if response == 'n':
+                return
 
         count = len(node_names)      
         node_name = node_names[0]
@@ -230,7 +232,7 @@ class AWS(Cloud):
         #print(f"{cmd}")
         os.system(cmd)
 
-    def destroy_nodes(self, node_names=None, IDs=None):
+    def destroy_nodes(self, node_names=None, IDs=None, need_confirmation=True):
         """Member function: destroy nodes
         Destroy all the nodes (instances) given the list of node names
                  - node_names: a list of node names to be destroyed
@@ -262,18 +264,21 @@ class AWS(Cloud):
                     raise ValueError(f"Instance '{name}' not found.")
 
                 running_time = datetime.now(timezone.utc) - instance.launch_time
-                instance_unit_cost = self.get_unit_price(instance)
+                instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
-                if response == 'y':
-                    # record the running time and cost
-                    running_time = datetime.now(timezone.utc) - instance.launch_time
-                    instance_unit_cost = self.get_unit_price(instance)
-                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                if need_confirmation == True: 
+                    response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
+                    if response != 'y':
+                        continue
+                   
+                # record the running time and cost
+                running_time = datetime.now(timezone.utc) - instance.launch_time
+                instance_unit_cost = self.get_unit_price_instance(instance)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                    instance.terminate()
-                    instances.append(instance)
+                instance.terminate()
+                instances.append(instance)
         else:
             for ID in IDs:
                 instance = self.ec2.Instance(ID)
@@ -283,14 +288,14 @@ class AWS(Cloud):
                     raise ValueError(f"Instance '{instance.name}' not found.")
 
                 running_time = datetime.now(timezone.utc) - instance.launch_time
-                instance_unit_cost = self.get_unit_price(instance)
+                instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
                 response = input(f"Do you want to terminate the node {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
                 if response == 'y':
                     # record the running time and cost
                     running_time = datetime.now(timezone.utc) - instance.launch_time
-                    instance_unit_cost = self.get_unit_price(instance)
+                    instance_unit_cost = self.get_unit_price_instance(instance)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
                     instance.terminate()
@@ -438,7 +443,7 @@ class AWS(Cloud):
         """
         return self.ec2.instances.filter(Filters = filters)    
 
-    def get_unit_price(self, instance):
+    def get_unit_price_instance(self, instance):
         """
         Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
         """
@@ -450,7 +455,7 @@ class AWS(Cloud):
 
     def get_unit_price(self, node_type: str):
         """
-        Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
+        Get the per-hour price of an instance depending on its node type (e.g. t1)
         """
         if node_type in self.vendor['node-types']:
             return self.vendor['node-types'][node_type]['price']
@@ -467,7 +472,7 @@ class AWS(Cloud):
 
             if instance.state['Name'] == 'running':
                 running_time = datetime.now(timezone.utc) - instance.launch_time
-                instance_unit_cost = self.get_unit_price(instance)
+                instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
                 nodes.append([self.get_instance_name(instance),

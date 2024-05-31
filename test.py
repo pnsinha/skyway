@@ -82,7 +82,7 @@ nodes, _ = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-#account.destroy_nodes(node_names=['node1'])
+account.destroy_nodes(node_names=['node1'])
 #account.destroy_nodes(IDs=['i-06fc520e0c8e6fd34'])
 
 

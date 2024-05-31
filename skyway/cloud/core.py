@@ -61,7 +61,7 @@ class Cloud():
         '''
         pass
 
-    def create_nodes(self, node_type: str, node_names = [], walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         '''
         create several nodes (aka instances) given a list of node names
         '''
@@ -73,7 +73,7 @@ class Cloud():
         '''
         pass
 
-    def destroy_nodes(self, node_names):
+    def destroy_nodes(self, node_names, need_confirmation=True):
         '''
         destroy several nodes (aka instances) given a list of node names
         '''
