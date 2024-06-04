@@ -271,13 +271,23 @@ class AWS(Cloud):
                     response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
                     if response != 'y':
                         continue
-                   
+
+                instance.terminate()
+   
                 # record the running time and cost
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                instance.terminate()
+                logfile = None
+                if not os.path.isfile(f'{self.account_name}.log'):
+                    logfile = open(f'{self.account_name}.log', "w")
+                else:
+                    logfile = open(f'{self.account_name}.log', "a")
+
+                logfile.write(f"{instance.instance_id} {instance.instance_type} {instance.launch_time} {datetime.now(timezone.utc)} {running_cost}\n")
+                logfile.close()
+               
                 instances.append(instance)
         else:
             for ID in IDs:
@@ -297,6 +307,14 @@ class AWS(Cloud):
                     running_time = datetime.now(timezone.utc) - instance.launch_time
                     instance_unit_cost = self.get_unit_price_instance(instance)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+                    logfile = None
+                    if not os.path.isfile(f'{self.account_name}.log'):
+                        logfile = open(f'{self.account_name}.log', "w")
+                    else:
+                        logfile = open(f'{self.account_name}.log', "a")
+                    logfile.write(f"{instance.instance_id} {instance.instance_type} {instance.launch_time} {datetime.now(timezone.utc)}")
+                    logfile.close()
 
                     instance.terminate()
                     instances.append(instance)
@@ -318,8 +336,59 @@ class AWS(Cloud):
             print(tabulate(user_info, headers=['User', 'Budget']))
             print("")
         return True
+      
+    def get_cost_and_usage(self, start_date, end_date, verbose=True):
+        # NOTES:
+        #   1) the current IAM role of the master account is not allowed to get a cost explorer client
+        #   need to use direct access key and secret from the account's user in the admin group
+        #   2) for resource-level cost info, user needs to opt-in for daily/hourly monitoring which costs $$
+        client = boto3.client('ce',
+                              aws_access_key_id = self.account['access_key_id'],
+                              aws_secret_access_key = self.account['secret_access_key'],
+                              region_name = self.account['region'])
+    
+        # Query the cost and usage data
+        response = client.get_cost_and_usage_with_resources(
+            TimePeriod={
+                'Start': start_date,
+                'End': end_date
+            },
+            Granularity='DAILY',
+            Metrics=['BlendedCost', 'UsageQuantity'],
+            Filter={
+                "Dimensions": { "Key": "SERVICE", 'Values': ['Amazon Elastic Compute Cloud - Compute'] }
+            },
+            GroupBy=[
+                {
+                    'Type': 'DIMENSION',
+                    'Key': 'RESOURCE_ID'
+                }
+            ]
+        )
+        
+        # Return the response
+        if verbose == True:
+            print(response['ResultsByTime'])
+        return response
+
+    def get_budget_api(self):
+        '''
+        get the budget from the cloud account
+        '''
+        client = boto3.client('budgets',
+                              aws_access_key_id = self.account['access_key_id'],
+                              aws_secret_access_key = self.account['secret_access_key'],
+                              region_name = self.account['region'])
+        response = client.describe_budgets(
+            AccountId=self.account['account_id']
+        )
+
+        print(response)
 
     def get_budget(self, user_name=None, verbose=True):
+        '''
+        get the budget from the account file
+        '''
         if user_name is not None:
             if user_name not in self.users:
                 print(f"{user_name} is not listed in the user group of this account.")

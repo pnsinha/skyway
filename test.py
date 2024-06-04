@@ -57,12 +57,13 @@ user = os.environ['USER']
 
 # create 1 node (instance)
 #nodes = account.create_nodes('c1',['node1'])
-#nodes = account.create_nodes('t1',['node1'],walltime="01:00:00")
+nodes = account.create_nodes('t1',['node1'],walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)
-nodes, _ = account.list_nodes(verbose=True)
-
+nodes, output_str = account.list_nodes(verbose=True)
+#account.get_cost_and_usage("2024-05-30", "2024-06-04", verbose=True)
+#account.get_budget_api()
 #nodes = account.get_running_nodes(verbose=True)
 
 # connect to an instance via SSH

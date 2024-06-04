@@ -103,12 +103,22 @@ class AZURE(Cloud):
                 # Calculate the running time
                 running_time = current_time - creation_time
                 
-                nodes.append([node.name, node.state, node_type, running_time])
+                # get the node type
+                node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
+                instance_unit_cost = self.get_unit_price_instance(node)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
+                nodes.append([node.name, node.state, node_type, node.id, running_time, running_cost])
+
+        output_str = ''
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Running Time']))
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Elapsed Time', 'Running Cost']))
             print("")
-
+        else:
+            output_str = io.StringIO()
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print("", file=output_str)
+        return nodes, output_str            
 
     def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         user_name = os.environ['USER']
@@ -399,7 +409,7 @@ class AZURE(Cloud):
                     # get the node type
                     node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
 
-                    nodes.append([node.name, node.state, node_type, running_time])
+                    nodes.append([node.name, node.state, node_type, node.id, running_time])
 
         if verbose == True:
             print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Running Time']))

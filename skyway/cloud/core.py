@@ -24,22 +24,18 @@ class Cloud():
         module = import_module('skyway.cloud.' + vendor)
         cloud_class = getattr(module, vendor.upper())
         return cloud_class(vendor_cfg[vendor], kwargs)
-    
+
     def __init__(self, vendor_cfg, kwargs):
         self.vendor = vendor_cfg
         
         for k, v in kwargs.items():
             setattr(self, k.replace('-','_'), v)
 
+    # account info
+
     def check_valid_user(self, user_name, verbose=False):
         '''
         check if a user name is in the cloud account
-        '''
-        pass
-
-    def get_budget(self, user_name=None, verbose=True):
-        '''
-        get the current budget of the whole account, or of a user name
         '''
         pass
 
@@ -54,6 +50,22 @@ class Cloud():
         get all the user names in this account (listed in the .yaml file)
         '''
         pass
+
+    # billing operations
+
+    def get_budget(self, user_name=None, verbose=True):
+        '''
+        get the current budget of the whole account, or of a user name from the account yaml file
+        '''
+        pass
+
+    def get_budget_api(self):
+        '''
+        get the budget from the cloud account
+        '''
+        pass
+
+    # instance operations
 
     def list_nodes(self, verbose=False):
         '''
@@ -82,6 +94,12 @@ class Cloud():
     def get_running_nodes(self, verbose=False):
         '''
         list all the running nodes (aka instances)
+        '''
+        pass
+
+    def execute(self, node_name: str, **kwargs):
+        '''
+        execute commands on a node
         '''
         pass
 

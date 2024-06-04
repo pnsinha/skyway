@@ -140,12 +140,22 @@ class GCP(Cloud):
                 creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
                 
                 # Calculate the running time
-                running_time = current_time - creation_time               
-                nodes.append([node.name, node.state, node.size, node.public_ips[0], running_time])
+                running_time = current_time - creation_time
 
+                # Calculate the running cost
+                instance_unit_cost = self.get_unit_price_instance(node)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0], running_time, running_cost])
+
+        output_str = ''
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Host', 'Running Time']))
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
+        else:
+            output_str = io.StringIO()
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print("", file=output_str)
+        return nodes, output_str
 
         return nodes
     
@@ -286,11 +296,35 @@ class GCP(Cloud):
             try:
                 node = self.driver.ex_get_node(name)
                 if node.name == name:
+                    creation_time_str = node.extra.get('creationTimestamp')  # GCP
+                    # Convert the creation time from string to datetime object
+                    creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
+                    current_time = datetime.now(timezone.utc)
+                    running_time = current_time - creation_time
+                    instance_unit_cost = self.get_unit_price_instance(node)
+                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
                     if need_confirmation == True:
-                        response = input(f"Do you want to destroy {node.name}? (y/n) ")
+                        response = input(f"Do you want to destroy {node.name} (running cost ${running_cost})? (y/n) ")
                         if response != 'y':
                             continue
+
                     self.driver.destroy_node(node)
+
+                    # record the running time and cost
+                    running_time = current_time - creation_time
+                    instance_unit_cost = self.get_unit_price_instance(node)
+                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+                    logfile = None
+                    if not os.path.isfile(f'{self.account_name}.log'):
+                        logfile = open(f'{self.account_name}.log', "w")
+                    else:
+                        logfile = open(f'{self.account_name}.log', "a")
+
+                    logfile.write(f"{node.id} {node.type} {creation_time} {current_time} {running_cost}\n")
+                    logfile.close()
+
             except:
                 continue
         return
