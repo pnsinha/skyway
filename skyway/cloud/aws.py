@@ -13,6 +13,7 @@ from .core import Cloud
 from .. import utils
 
 from datetime import datetime, timezone
+import pandas as pd
 
 # AWS python SDK
 import boto3
@@ -82,7 +83,7 @@ class AWS(Cloud):
         if self.using_libcloud:
             EC2 = get_driver(Provider.EC2)
             self.driver = EC2(self.account['access_key_id'], self.account['secret_access_key'], self.account['region'])
-
+       
     def list_nodes(self, verbose=False):
         """Member function: list_nodes
         Get a list of all existed instances
@@ -279,16 +280,17 @@ class AWS(Cloud):
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                # move to pandas
-                logfile = None
-                if not os.path.isfile(f'{self.account_name}.log'):
-                    logfile = open(f'{self.account_name}.log', "w")
+                # store the record into the database
+                data = [instance.instance_id, instance.instance_type, instance.launch_time, datetime.now(timezone.utc), running_cost]
+                logfile = f"{self.account_name}.pkl"
+                if os.path.isfile(logfile):
+                    df = pd.read_pickle(logfile)
                 else:
-                    logfile = open(f'{self.account_name}.log', "a")
+                    df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
 
-                logfile.write(f"{instance.instance_id} {instance.instance_type} {instance.launch_time} {datetime.now(timezone.utc)} {running_cost}\n")
-                logfile.close()
-               
+                df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
+                df.to_pickle(logfile)
+
                 instances.append(instance)
         else:
             for ID in IDs:
@@ -303,22 +305,27 @@ class AWS(Cloud):
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
                 response = input(f"Do you want to terminate the node {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
-                if response == 'y':
-                    # record the running time and cost
-                    running_time = datetime.now(timezone.utc) - instance.launch_time
-                    instance_unit_cost = self.get_unit_price_instance(instance)
-                    running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                if response != 'y':
+                    continue
 
-                    logfile = None
-                    if not os.path.isfile(f'{self.account_name}.log'):
-                        logfile = open(f'{self.account_name}.log', "w")
-                    else:
-                        logfile = open(f'{self.account_name}.log', "a")
-                    logfile.write(f"{instance.instance_id} {instance.instance_type} {instance.launch_time} {datetime.now(timezone.utc)}")
-                    logfile.close()
+                # record the running time and cost
+                running_time = datetime.now(timezone.utc) - instance.launch_time
+                instance_unit_cost = self.get_unit_price_instance(instance)
+                running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                    instance.terminate()
-                    instances.append(instance)
+                # store the record into the database
+                data = [instance.instance_id, instance.instance_type, instance.launch_time, datetime.now(timezone.utc), running_cost]
+                logfile = f"{self.account_name}.pkl"
+                if os.path.isfile(logfile):
+                    df = pd.read_pickle(logfile)
+                else:
+                    df = pd.DataFrame(columns=['InstanceID','InstanceType','Start','End', 'Cost'])
+
+                df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
+                df.to_pickle(logfile)
+
+                instance.terminate()
+                instances.append(instance)
 
 
         for instance in instances:

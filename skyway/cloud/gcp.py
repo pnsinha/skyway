@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 from .core import Cloud
 from .. import utils
+import pandas as pd
 
 # apache-libcloud
 from libcloud.compute.types import Provider
@@ -316,14 +317,16 @@ class GCP(Cloud):
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
-                    logfile = None
-                    if not os.path.isfile(f'{self.account_name}.log'):
-                        logfile = open(f'{self.account_name}.log', "w")
+                    # store the record into the database
+                    data = [node.id, node.type, creation_time, current_time, running_cost]
+                    logfile = f"{self.account_name}.pkl"
+                    if os.path.isfile(logfile):
+                        df = pd.read_pickle(logfile)
                     else:
-                        logfile = open(f'{self.account_name}.log', "a")
+                        df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
 
-                    logfile.write(f"{node.id} {node.type} {creation_time} {current_time} {running_cost}\n")
-                    logfile.close()
+                    df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
+                    df.to_pickle(logfile)
 
             except:
                 continue

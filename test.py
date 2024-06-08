@@ -57,7 +57,7 @@ user = os.environ['USER']
 
 # create 1 node (instance)
 #nodes = account.create_nodes('c1',['node1'])
-nodes = account.create_nodes('t1',['node1'],walltime="00:15:00")
+#nodes = account.create_nodes('t1',['node1'],walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)

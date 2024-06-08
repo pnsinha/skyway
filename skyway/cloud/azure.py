@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from .core import Cloud
 from .. import utils
+import pandas as pd
 
 from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
@@ -282,6 +283,21 @@ class AZURE(Cloud):
                 response = input(f"Do you want to destroy {node.name} (running cost ${running_cost:0.5f})? (y/n) ")
                 if response != 'y':
                     continue
+
+            # record the running time and cost
+            running_time = datetime.now(timezone.utc) - creation_time
+            running_cost = running_time.seconds/3600.0 * instance_unit_cost
+
+            # store the record into the database
+            data = [node.id, node_type, creation_time, datetime.now(timezone.utc), running_cost]
+            logfile = f"{self.account_name}.pkl"
+            if os.path.isfile(logfile):
+                df = pd.read_pickle(logfile)
+            else:
+                df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
+
+            df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
+            df.to_pickle(logfile)
 
             # order to destroy: VM, IP, NIC, VNET
             self.driver.destroy_node(node)
