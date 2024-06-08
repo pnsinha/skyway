@@ -70,12 +70,16 @@ if __name__ == "__main__":
     if os.path.isfile(logo_file):
         st.image(logo_file,width=450)
 
-    #st.markdown("### 📘 RCC User Guide Chatbot 🤖")
-    st.markdown("## :green_book: Skyway Dashboard")
+    #st.markdown("### :blue_book:  RCC User Guide Chatbot 🤖") 
+    st.markdown("## Skyway Dashboard")
 
-    col1, col2 = st.columns((1,1))
+    col1, col2, col3 = st.columns((1,2,2))
 
     with col1:
+        st.markdown("Instances")
+        st.markdown("Usage")
+
+    with col2:
         st.markdown("#### Requested resources")
         job_name = st.text_input(r"$\textsf{\large Job name}$", "your_run")
         allocation = st.text_input(r"$\textsf{\large Allocation}$", "ndtrung-aws")
@@ -88,7 +92,7 @@ if __name__ == "__main__":
         elif 'gcp' in vendor_name:
             node_types = ('c1 (n1-standard-1, 1-core CPU)', 'c4 (c2-standard-8, 4-core CPU)', 'g1 (n1-standard-8, 4-core CPU)')
         elif 'azure' in vendor_name:
-            node_types = ('c1 (Standard_DS1_v2,, 1-core CPU)', 'b4 (Standard_B2ts_v2, 2-core CPU)', 'b32 (Standard_B32ls_v2, 32-core)', 'g1 (Standard_NC6s_A100_v3, 1 A100 GPU)')
+            node_types = ('c1 (Standard_DS1_v2, 1-core CPU)', 'b4 (Standard_B2ts_v2, 2-core CPU)', 'b32 (Standard_B32ls_v2, 32-core)', 'g1 (Standard_NC6s_A100_v3, 1 A100 GPU)')
 
         node_type = st.selectbox(r"$\textsf{\large Node type}$", node_types)
         walltime = st.text_input(r"$\textsf{\large Walltime (HH:MM:SS)}$", "02:00:00")
@@ -101,7 +105,7 @@ if __name__ == "__main__":
         else:
             cmd = ""
 
-    with col2:
+    with col3:
       
         account_name = allocation.lower()
 
@@ -133,6 +137,6 @@ if __name__ == "__main__":
         if st.button('Terminate', type='primary'):
             instanceDescriptor.terminateJob(node_names=['your_run'])
 
-        st.markdown("#### Account usage statistics")
+        st.markdown("#### Usage statistics")
 
     st.markdown("""Developed by the UChicago Research Computing Center""")

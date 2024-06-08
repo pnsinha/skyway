@@ -279,6 +279,7 @@ class AWS(Cloud):
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
 
+                # move to pandas
                 logfile = None
                 if not os.path.isfile(f'{self.account_name}.log'):
                     logfile = open(f'{self.account_name}.log', "w")
