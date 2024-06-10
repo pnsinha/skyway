@@ -55,7 +55,8 @@ class AWS(Cloud):
 
         self.vendor = vendor_cfg['aws']
         self.account_name = account
-
+        self.usage_history = f"usage-{self.account_name}.pkl"
+        
         # This is how the existing skyway creates the ec2 resource without master
         self.using_trusted_agent = True
         if self.using_trusted_agent == False:
@@ -132,9 +133,15 @@ class AWS(Cloud):
         """
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
+        usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+        running_cost = self.get_running_cost(verbose=False)
+        usage = usage + running_cost
+        remaining_balance = user_budget - usage
         unit_price = self.vendor['node-types'][node_type]['price']
         if need_confirmation == True:
-            print(f"User budget: ${user_budget}")
+            print(f"User budget: ${user_budget:.3f}")
+            print(f"+ Usage    : ${usage:.3f}")
+            print(f"+ Available: ${remaining_balance:.3f}")
             response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
             if response == 'n':
                 return
@@ -206,7 +213,7 @@ class AWS(Cloud):
 
             # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
             #cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
-            cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo shutdown -P {walltime_in_minutes}' "
+            cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo shutdown -P {walltime_in_minutes}' "
 
             print(f"{cmd}")
             os.system(cmd)
@@ -229,7 +236,7 @@ class AWS(Cloud):
         region = self.account['region']
         ip_converted = ip.replace('.','-')
         
-        cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'echo \"Welcome to AWS EC2!\"; bash -l' "
+        cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'echo \"Welcome to AWS EC2!\"; bash -l' "
         #print(f"{cmd}")
         os.system(cmd)
 
@@ -244,6 +251,8 @@ class AWS(Cloud):
                   if self.get_instance_name(instance) in self.account['protected_nodes']:
                       continue
         """
+        
+        user_name = os.environ['USER']
         
         if node_names is None and IDs is None:
             raise ValueError(f"node_names and IDs cannot be both empty.")
@@ -267,6 +276,10 @@ class AWS(Cloud):
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                instance_user_name = self.get_instance_user_name(instance)
+                if instance_user_name != user_name:
+                    print(f"Cannot destroy an instance {name} created by other users")
+                    continue
 
                 if need_confirmation == True: 
                     response = input(f"Do you want to terminate the node {name} {instance.instance_id} (running cost ${running_cost:0.5f})? (y/n) ")
@@ -279,17 +292,18 @@ class AWS(Cloud):
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
 
                 # store the record into the database
-                data = [instance.instance_id, instance.instance_type, instance.launch_time, datetime.now(timezone.utc), running_cost]
-                logfile = f"{self.account_name}.pkl"
-                if os.path.isfile(logfile):
-                    df = pd.read_pickle(logfile)
+                data = [instance_user_name, instance.instance_id, instance.instance_type,
+                        instance.launch_time, datetime.now(timezone.utc), running_cost, remaining_balance]
+                if os.path.isfile(self.usage_history):
+                    df = pd.read_pickle(self.usage_history)
                 else:
-                    df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
+                    df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
 
                 df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
-                df.to_pickle(logfile)
+                df.to_pickle(self.usage_history)
 
                 instances.append(instance)
         else:
@@ -297,6 +311,12 @@ class AWS(Cloud):
                 instance = self.ec2.Instance(ID)
                 if self.get_instance_name(instance) in self.account['protected_nodes']:
                     continue
+
+                instance_user_name = self.get_instance_user_name(instance)
+                if instance_user_name != user_name:
+                    print(f"Cannot destroy an instance {name} from other users")
+                    continue
+
                 if instance is None:
                     raise ValueError(f"Instance '{instance.name}' not found.")
 
@@ -312,17 +332,19 @@ class AWS(Cloud):
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
 
                 # store the record into the database
-                data = [instance.instance_id, instance.instance_type, instance.launch_time, datetime.now(timezone.utc), running_cost]
-                logfile = f"{self.account_name}.pkl"
-                if os.path.isfile(logfile):
-                    df = pd.read_pickle(logfile)
+                data = [instance_user_name, instance.instance_id, instance.instance_type,
+                        instance.launch_time, datetime.now(timezone.utc), running_cost, remaining_balance]
+
+                if os.path.isfile(self.usage_history):
+                    df = pd.read_pickle(self.usage_history)
                 else:
-                    df = pd.DataFrame(columns=['InstanceID','InstanceType','Start','End', 'Cost'])
+                    df = pd.DataFrame(columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
 
                 df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
-                df.to_pickle(logfile)
+                df.to_pickle(self.usage_history)
 
                 instance.terminate()
                 instances.append(instance)
@@ -378,6 +400,32 @@ class AWS(Cloud):
         if verbose == True:
             print(response['ResultsByTime'])
         return response
+
+    def get_cost_and_usage_from_db(self, user_name):
+        '''
+        compute the accumulating cost from the pkl database
+        and the remaining balance
+        '''
+        if user_name not in self.users:
+            raise Exception(f"{user_name} is not listed in the user group of this account.")
+                
+        user_budget = self.users[user_name]['budget']
+
+        if not os.path.isfile(self.usage_history):
+            print(f"Usage history {self.usage_history} is not available")
+            data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
+            df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            df = pd.concat([pd.DataFrame(data, columns=df.columns), df], ignore_index=True)
+            df.to_pickle(self.usage_history)
+            return 0, user_budget
+
+        df = pd.read_pickle(self.usage_history)
+        df_user = df.loc[df['User'] == user_name]
+        accumulating_cost = df_user['Cost'].sum()
+        user_budget = self.get_budget(user_name=user_name, verbose=False)
+        remaining_balance = user_budget - accumulating_cost
+
+        return accumulating_cost, remaining_balance
 
     def get_budget_api(self):
         '''
@@ -512,6 +560,21 @@ class AWS(Cloud):
         
         return ''
 
+    def get_instance_user_name(self, instance):
+        """Member function: get_instance_user_name
+        Get the user name information from the instance.
+        
+         - instance: an instance self.ec2.Instance()
+        """
+        
+        if instance.tags is None: return ''
+
+        for tag in instance.tags:
+            if tag['Key'] == 'User':
+                return tag['Value']
+        
+        return ''
+
 
     def get_instances(self, filters = []):
         """Member function: get_instances
@@ -538,10 +601,11 @@ class AWS(Cloud):
             return self.vendor['node-types'][node_type]['price']
         return -1.0
 
-    def get_running_cost(self):
+    def get_running_cost(self, verbose=True):
         instances = self.get_instances()
 
         nodes = []
+        total_cost = 0.0
         for instance in instances:
             
             if self.get_instance_name(instance) in self.account['protected_nodes']:
@@ -551,12 +615,14 @@ class AWS(Cloud):
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
-
+                total_cost = total_cost + running_cost
                 nodes.append([self.get_instance_name(instance),
                                     instance.state['Name'], 
                                     instance.instance_type, 
                                     instance.instance_id,
                                     running_time,
                                     running_cost])
+        if verbose == True:
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'ElapsedTime', 'RunningCost']))
 
-        print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'ElapsedTime', 'RunningCost']))
+        return total_cost

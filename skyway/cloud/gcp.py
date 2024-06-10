@@ -53,6 +53,7 @@ class GCP(Cloud):
       
         self.vendor = vendor_cfg['gcp']
         self.account_name = account
+        self.usage_history = f"usage-{self.account_name}.pkl"
 
         ComputeEngine = get_driver(Provider.GCE)
         try:
@@ -102,6 +103,30 @@ class GCP(Cloud):
                 print(f"Total: ${total_budget}")
             return total_budget
 
+    def get_cost_and_usage_from_db(self, user_name):
+        '''
+        compute the accumulating cost from the pkl database
+        and the remaining balance
+        '''
+        if user_name not in self.users:
+            raise Exception(f"{user_name} is not listed in the user group of this account.")
+                
+        user_budget = self.users[user_name]['budget']
+
+        if not os.path.isfile(self.usage_history):
+            print(f"Usage history {self.usage_history} is not available")
+            data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
+            df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            df = pd.concat([pd.DataFrame(data, columns=df.columns), df], ignore_index=True)
+            df.to_pickle(self.usage_history)
+            return 0, user_budget
+
+        df = pd.read_pickle(self.usage_history)
+        df_user = df.loc[df['User'] == user_name]
+        accumulating_cost = df_user['Cost'].sum()
+        remaining_balance = user_budget - accumulating_cost
+
+        return accumulating_cost, remaining_balance
 
     def get_node_types(self):
         """
@@ -157,8 +182,6 @@ class GCP(Cloud):
             print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
             print("", file=output_str)
         return nodes, output_str
-
-        return nodes
     
     def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         """Member function: create_compute
@@ -172,9 +195,16 @@ class GCP(Cloud):
         """
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
+        usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+        running_cost = self.get_running_cost(verbose=False)
+        usage = usage + running_cost
+        remaining_balance = user_budget - usage
         unit_price = self.vendor['node-types'][node_type]['price']
         if need_confirmation == True:
-            print(f"User budget: ${user_budget}")
+            print(f"User budget: ${user_budget:.3f}")
+            print(f"+ Usage    : ${usage:.3f}")
+            print(f"+ Available: ${remaining_balance:.3f}")
+        
             response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
             if response == 'n':
                 return
@@ -223,7 +253,7 @@ class GCP(Cloud):
 
             try:
 
-                tags = { node_name, user_name }
+                tags = { 'node_name': node_name, 'user': user_name }
                 node = self.driver.create_node(node_name,
                                                size = node_cfg['name'],
                                                image = self.account['image_name'], 
@@ -254,7 +284,7 @@ class GCP(Cloud):
                 user_name = os.environ['USER']
                 print("Connecting to host: " + host)
 
-                cmd = f"ssh  {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
+                cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
                 os.system(cmd)
 
             except Exception as ex:
@@ -293,10 +323,17 @@ class GCP(Cloud):
         '''
         if isinstance(node_names, str): node_names = [node_names]
 
+        user_name = os.environ['USER']
+
         for name in node_names:
             try:
                 node = self.driver.ex_get_node(name)
                 if node.name == name:
+                    node_user_name = self.get_instance_user_name(node)
+                    if  node_user_name != user_name:
+                        print(f"Cannot destroy an instance {name} created by other users")
+                        continue
+
                     creation_time_str = node.extra.get('creationTimestamp')  # GCP
                     # Convert the creation time from string to datetime object
                     creation_time = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
@@ -316,17 +353,18 @@ class GCP(Cloud):
                     running_time = current_time - creation_time
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
-
+                    usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+                    
                     # store the record into the database
-                    data = [node.id, node.type, creation_time, current_time, running_cost]
-                    logfile = f"{self.account_name}.pkl"
-                    if os.path.isfile(logfile):
-                        df = pd.read_pickle(logfile)
+                    data = [node.id, node.type, creation_time, current_time, running_cost, remaining_balance]
+
+                    if os.path.isfile(self.usage_history):
+                        df = pd.read_pickle(self.usage_history)
                     else:
-                        df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
+                        df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
 
                     df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
-                    df.to_pickle(logfile)
+                    df.to_pickle(self.usage_history)
 
             except:
                 continue
@@ -382,6 +420,11 @@ class GCP(Cloud):
     def get_host_ip(self, node_name):
         return self.driver.ex_get_node(node_name).public_ips[0]
 
+    def get_instance_user_name(self, node):
+        '''
+        return the user name that created the node
+        '''
+        return node.extra.get('tags', {}).get('user')
 
     def get_instance_name(self, node):
         """Member function: get_instance_name
@@ -405,6 +448,7 @@ class GCP(Cloud):
         current_time = datetime.now(timezone.utc)
 
         nodes = []
+        total_cost = 0.0
         for node in self.driver.list_nodes():
             if self.get_instance_name(node) in self.account['protected_nodes']:
                 continue
@@ -420,6 +464,7 @@ class GCP(Cloud):
 
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                    total_cost = total_cost + running_cost
 
                     nodes.append([node.name, node.size, node.id, node.public_ips[0], running_time, running_cost])
 
@@ -427,3 +472,4 @@ class GCP(Cloud):
             print(tabulate(nodes, headers=['Name', 'Type', 'Instance ID', 'Host', 'Running Time', 'Running Cost']))
             print("")
 
+        return total_cost

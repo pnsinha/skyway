@@ -61,9 +61,18 @@ class Cloud():
 
     def get_budget_api(self):
         '''
-        get the budget from the cloud account
+        get the budget from the cloud account API
         '''
         pass
+
+    def get_cost_and_usage_from_db(self, user_name):
+        '''
+        compute the accumulating cost from the pkl database
+        and the remaining balance
+        '''
+        accumulating_cost = 0
+        remaining_balance = 0
+        return accumulating_cost, remaining_balance
 
     # instance operations
 
@@ -121,6 +130,11 @@ class Cloud():
         '''
         pass
 
+    def get_instance_user_name(self, node):
+        '''
+        return the user name that created the node
+        '''
+        
     def get_instances(self, filters = []):
         '''
         get the reference to the node (aka instance) object (from the vendor API)

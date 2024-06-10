@@ -57,7 +57,8 @@ class AZURE(Cloud):
       
         self.vendor = vendor_cfg['azure']
         self.account_name = account
-        
+        self.usage_history = f"usage-{self.account_name}.pkl"
+
         self.credentials = ClientSecretCredential(client_id=self.account['client_id'],
                                                   client_secret=self.account['client_secret'],
                                                   tenant_id=self.account['tenant_id'])
@@ -124,9 +125,15 @@ class AZURE(Cloud):
     def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
+        usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+        running_cost = self.get_running_cost(verbose=False)
+        usage = usage + running_cost
+        remaining_balance = user_budget - usage
         unit_price = self.vendor['node-types'][node_type]['price']
         if need_confirmation == True:
-            print(f"User budget: ${user_budget}")
+            print(f"User budget: ${user_budget:.3f}")
+            print(f"+ Usage    : ${usage:.3f}")
+            print(f"+ Available: ${remaining_balance:.3f}")
             response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
             if response == 'n':
                 return
@@ -217,7 +224,7 @@ class AZURE(Cloud):
 
             # Step 5: Create the instance          
             try:
-                tags = { node_name, user_name }
+                tags = { 'node_name': node_name, 'user': user_name }
                 node = self.driver.create_node(name=node_name,
                                                size=size,
                                                image=image,
@@ -239,7 +246,7 @@ class AZURE(Cloud):
             host = node.public_ips[0]
             user_name = os.environ['USER']
             print("Connecting to host: " + host)          
-            cmd = f"ssh  {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
+            cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
             os.system(cmd)
             '''
 
@@ -290,14 +297,14 @@ class AZURE(Cloud):
 
             # store the record into the database
             data = [node.id, node_type, creation_time, datetime.now(timezone.utc), running_cost]
-            logfile = f"{self.account_name}.pkl"
-            if os.path.isfile(logfile):
-                df = pd.read_pickle(logfile)
+
+            if os.path.isfile(self.usage_history):
+                df = pd.read_pickle(self.usage_history)
             else:
                 df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
 
             df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
-            df.to_pickle(logfile)
+            df.to_pickle(self.usage_history)
 
             # order to destroy: VM, IP, NIC, VNET
             self.driver.destroy_node(node)
@@ -376,6 +383,31 @@ class AZURE(Cloud):
                 print(tabulate(user_info, headers=['User', 'Budget']))
                 print(f"Total: ${total_budget}")
             return total_budget
+
+    def get_cost_and_usage_from_db(self, user_name):
+        '''
+        compute the accumulating cost from the pkl database
+        and the remaining balance
+        '''
+        if user_name not in self.users:
+            raise Exception(f"{user_name} is not listed in the user group of this account.")
+                
+        user_budget = self.users[user_name]['budget']
+
+        if not os.path.isfile(self.usage_history):
+            print(f"Usage history {self.usage_history} is not available")
+            data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
+            df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            df = pd.concat([pd.DataFrame(data, columns=df.columns), df], ignore_index=True)
+            df.to_pickle(self.usage_history)
+            return 0, user_budget
+
+        df = pd.read_pickle(self.usage_history)
+        df_user = df.loc[df['User'] == user_name]
+        accumulating_cost = df_user['Cost'].sum()
+        remaining_balance = user_budget - accumulating_cost
+
+        return accumulating_cost, remaining_balance
 
     def get_node_types(self):
         """
@@ -463,11 +495,18 @@ class AZURE(Cloud):
         """
         return node.name
 
+    def get_instance_user_name(self, node):
+        '''
+        return the user name that created the node
+        '''
+        return node.extra.get('tags', {}).get('user')
+
     def get_running_cost(self, verbose=True):
 
         current_time = datetime.now(timezone.utc)
 
         nodes = []
+        total_cost = 0.0
         for node in self.driver.list_nodes():
             if self.get_instance_name(node) in self.account['protected_nodes']:
                 continue
@@ -491,6 +530,7 @@ class AZURE(Cloud):
 
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
+                    total_cost = total_cost + running_cost
 
                     nodes.append([node.name, node_type, running_time, running_cost])
 
@@ -498,4 +538,5 @@ class AZURE(Cloud):
             print(tabulate(nodes, headers=['Name', 'Type', 'Running Time', 'Running Cost']))
             print("")
 
+        return total_cost
 
