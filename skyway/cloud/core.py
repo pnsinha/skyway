@@ -76,7 +76,7 @@ class Cloud():
 
     # instance operations
 
-    def list_nodes(self, verbose=False):
+    def list_nodes(self, show_protected_nodes=False, verbose=False):
         '''
         list all the running/stopped nodes (aka instances)
         '''

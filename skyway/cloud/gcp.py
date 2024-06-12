@@ -123,6 +123,7 @@ class GCP(Cloud):
 
         df = pd.read_pickle(self.usage_history)
         df_user = df.loc[df['User'] == user_name]
+        df_user = df_user.astype({"Cost": float})
         accumulating_cost = df_user['Cost'].sum()
         remaining_balance = user_budget - accumulating_cost
 
@@ -148,7 +149,7 @@ class GCP(Cloud):
         print(tabulate(user_info, headers=['User', 'Budget']))
         print("") 
 
-    def list_nodes(self, verbose=False):
+    def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes
         Get a list of all existed instances
         

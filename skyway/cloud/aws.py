@@ -58,7 +58,8 @@ class AWS(Cloud):
         self.usage_history = f"usage-{self.account_name}.pkl"
         
         # This is how the existing skyway creates the ec2 resource without master
-        self.using_trusted_agent = True
+        # rcc-aws: using_trusted_agent = False
+        self.using_trusted_agent = False
         if self.using_trusted_agent == False:
             self.ec2 = boto3.resource('ec2',
                                        aws_access_key_id = self.account['access_key_id'],
@@ -85,7 +86,7 @@ class AWS(Cloud):
             EC2 = get_driver(Provider.EC2)
             self.driver = EC2(self.account['access_key_id'], self.account['secret_access_key'], self.account['region'])
        
-    def list_nodes(self, verbose=False):
+    def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes
         Get a list of all existed instances
         
@@ -97,6 +98,10 @@ class AWS(Cloud):
         nodes = []
         
         for instance in instances:
+            node_name = self.get_instance_name(instance)
+            if show_protected_nodes == False and node_name in self.account['protected_nodes']:
+                continue
+
             if instance.state['Name'] != 'terminated':
                 running_time = datetime.now(timezone.utc) - instance.launch_time
                 
@@ -264,12 +269,12 @@ class AWS(Cloud):
                 if name in self.account['protected_nodes']:
                     continue
                 
-                running_instances = self.get_instances(filters = [{
+                avail_instances = self.get_instances(filters = [{
                     "Name" : "instance-state-name",
-                    "Values" : ["running"]
+                    "Values" : ["running", "stopped"]
                 }])
                 
-                instance = next((inst for inst in running_instances if self.get_instance_name(inst) == name), None)
+                instance = next((inst for inst in avail_instances if self.get_instance_name(inst) == name), None)
                 if instance is None:
                     raise ValueError(f"Instance '{name}' not found.")
 
@@ -413,17 +418,19 @@ class AWS(Cloud):
 
         if not os.path.isfile(self.usage_history):
             print(f"Usage history {self.usage_history} is not available")
-            data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
+            data = [user_name, "--", "--", "00:00:00", "00:00:00", "0.0", user_budget]
             df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
-            df = pd.concat([pd.DataFrame(data, columns=df.columns), df], ignore_index=True)
+            #df = pd.DataFrame(columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
             return 0, user_budget
 
         df = pd.read_pickle(self.usage_history)
         df_user = df.loc[df['User'] == user_name]
+        df_user = df_user.astype({"Cost": float})
         accumulating_cost = df_user['Cost'].sum()
         user_budget = self.get_budget(user_name=user_name, verbose=False)
-        remaining_balance = user_budget - accumulating_cost
+        remaining_balance = float(user_budget) - float(accumulating_cost)
 
         return accumulating_cost, remaining_balance
 

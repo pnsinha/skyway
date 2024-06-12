@@ -41,7 +41,7 @@ from skyway.service import core
 #service.core.list_all()
 
 # Test cloud nodes
-account = AWS('ndtrung-aws')
+account = AWS('rcc-aws')
 #account = GCP('ndtrung-gcp')
 #account = AZURE('ndtrung-azure')
 
@@ -83,7 +83,7 @@ nodes, output_str = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-#account.destroy_nodes(node_names=['node1'])
+account.destroy_nodes(node_names=['node1'])
 #account.destroy_nodes(IDs=['i-06fc520e0c8e6fd34'])
 
 

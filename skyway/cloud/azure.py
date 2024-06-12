@@ -76,7 +76,7 @@ class AZURE(Cloud):
         assert(self.driver != False)
         return
 
-    def list_nodes(self, verbose=False):
+    def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes
         Get a list of all existed instances
         
@@ -404,6 +404,7 @@ class AZURE(Cloud):
 
         df = pd.read_pickle(self.usage_history)
         df_user = df.loc[df['User'] == user_name]
+        df_user = df_user.astype({"Cost": float})
         accumulating_cost = df_user['Cost'].sum()
         remaining_balance = user_budget - accumulating_cost
 
