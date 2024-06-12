@@ -8,6 +8,7 @@
 Documentation for GCP Class
 """
 import os
+import io
 import logging
 from tabulate import tabulate
 from datetime import datetime, timezone
@@ -117,7 +118,7 @@ class GCP(Cloud):
             print(f"Usage history {self.usage_history} is not available")
             data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
             df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
-            df = pd.concat([pd.DataFrame(data, columns=df.columns), df], ignore_index=True)
+            df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
             return 0, user_budget
 

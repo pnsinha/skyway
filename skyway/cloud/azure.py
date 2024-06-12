@@ -6,6 +6,7 @@
 Documentation for Azure Class
 """
 import os
+import io
 import logging
 from tabulate import tabulate
 from datetime import datetime, timezone

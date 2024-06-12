@@ -113,7 +113,7 @@ class InstanceDescriptor:
             proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
             (out, err) = proc.communicate()
             
-            cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16u %N 0.0 0.0\"; squeue -u {self.user} | tail -n1"
+            cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %13i %N 0.0 0.0\"; squeue -u {self.user} | tail -n1"
             proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
             (out, err) = proc.communicate()
             # encode output as utf-8 from bytes, remove newline character
@@ -121,7 +121,9 @@ class InstanceDescriptor:
             # convert to a list
             m = m.split()
             if len(m) == 7:
-                nodes = m
+                m[0] = self.jobname
+                m[2] = self.node_type
+                nodes = [m]
 
         else:
             nodes, list_of_nodes = self.account.list_nodes(verbose=False) 
@@ -158,15 +160,24 @@ if __name__ == "__main__":
         vendor_name = vendor.lower()
         if 'aws' in vendor_name:
             node_types = ('t1 (t2.micro, 1-core CPU)', 'c1 (c5.large, 1-core CPU)', 'c36 (c5.18xlarge, 36-core CPU)', 'g1 (p3.2xlarge, 1 V100 GPU)')
+            vendor_short = "aws"
+            accounts = ('rcc-aws', 'ndtrung-aws')
         elif 'gcp' in vendor_name:
             node_types = ('c1 (n1-standard-1, 1-core CPU)', 'c4 (c2-standard-8, 4-core CPU)', 'g1 (n1-standard-8, 4-core CPU)')
+            vendor_short = "gcp"
+            accounts = ('rcc-gcp', 'ndtrung-gcp')
         elif 'azure' in vendor_name:
             node_types = ('c1 (Standard_DS1_v2, 1-core CPU)', 'b4 (Standard_B2ts_v2, 2-core CPU)', 'b32 (Standard_B32ls_v2, 32-core)', 'g1 (Standard_NC6s_A100_v3, 1 A100 GPU)')
+            vendor_short = "azure"
+            accounts = ('rcc-azure', 'ndtrung-azure')
         elif 'midway3' in vendor_name:
             node_types = ('t1 (1 CPU core + 4 GB RAM)', 'c4 (4 CPU cores + 16 GB RAM)', 'c16 (16 CPU cores + 64 GB RAM)', 'c48 (48 CPU cores + 128 GB RAM)', 'g1 (8 CPU cores + 1 V100 GPU)', 'bigmem (16 CPU cores + 512 GB RAM)')
+            accounts = ('rcc-staff',)
+            vendor_short = "midway3"
 
         # account or allocation
-        allocation = st.text_input(r"$\textsf{\large Account}$", "rcc-aws", key='account', help='Your cloud account (e.g. rcc-aws) or on-premises allocation (e.g. rcc-staff)')
+        #allocation = st.text_input(r"$\textsf{\large Account}$", "rcc-aws", key='account', help='Your cloud account (e.g. rcc-aws) or on-premises allocation (e.g. rcc-staff)')
+        allocation = st.selectbox(r"$\textsf{\large Account}$", accounts, key='account', help='Your cloud account (e.g. rcc-aws) or on-premises allocation (e.g. rcc-staff)')
         node_type = st.selectbox(r"$\textsf{\large Node type}$", node_types, help='Instance type, or node configuration')
         walltime = st.text_input(r"$\textsf{\large Walltime (HH:MM:SS)}$", "02:00:00", help='Max walltime for the instance')
 
