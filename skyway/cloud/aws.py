@@ -39,34 +39,35 @@ class AWS(Cloud):
         #super().__init__(vendor_cfg, kwargs)
 
         # load [account].yaml under $SKYWAYROOT/etc/accounts
-        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        account_cfg = utils.load_config(account, path)
+        account_path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
+        account_cfg = utils.load_config(account, account_path)
         if account_cfg['cloud'] != 'aws' :
             raise Exception(f'Cloud vendor aws is not associated with this account.')
 
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
 
+        self.usage_history = f"{account_path}usage-{account}.pkl"
+
         # load cloud.yaml under $SKYWAYROOT/etc/
-        path = os.environ['SKYWAYROOT'] + '/etc/'
-        vendor_cfg = utils.load_config('cloud', path)
+        cloud_path = os.environ['SKYWAYROOT'] + '/etc/'
+        vendor_cfg = utils.load_config('cloud', cloud_path)
         if 'aws' not in vendor_cfg:
             raise Exception(f'Cloud vendor aws is undefined.')
 
         self.vendor = vendor_cfg['aws']
         self.account_name = account
-        self.usage_history = f"usage-{self.account_name}.pkl"
-        
-        # This is how the existing skyway creates the ec2 resource without master
-        # rcc-aws: using_trusted_agent = False
+
+        # using_trusted_agent = False means that no use of master account key and secret as defined in cloud.yaml
         self.using_trusted_agent = False
         if self.using_trusted_agent == False:
+            # This is how the existing skyway creates the ec2 resource without master for rcc-aws
             self.ec2 = boto3.resource('ec2',
                                        aws_access_key_id = self.account['access_key_id'],
                                        aws_secret_access_key = self.account['secret_access_key'],
                                        region_name = self.account['region'])
         else:
-            # This is how the testing skyway (midway3 VM) uses the IAM rcc-skyway as a trusted agent from the RCC-Skyway account (391009850283)
+            # This is how the testing skyway (midway3 VM) for rcc-aws: uses the IAM rcc-skyway as a trusted agent from the RCC-Skyway account (391009850283)
             self.client = boto3.client('sts',
                 aws_access_key_id = self.vendor['master_access_key_id'],
                 aws_secret_access_key = self.vendor['master_secret_access_key'])
@@ -240,8 +241,9 @@ class AWS(Cloud):
         username = self.vendor['username']
         region = self.account['region']
         ip_converted = ip.replace('.','-')
-        
-        cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'echo \"Welcome to AWS EC2!\"; bash -l' "
+
+        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd += f" 'ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' "
         #print(f"{cmd}")
         os.system(cmd)
 
@@ -346,7 +348,7 @@ class AWS(Cloud):
                 if os.path.isfile(self.usage_history):
                     df = pd.read_pickle(self.usage_history)
                 else:
-                    df = pd.DataFrame(columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+                    df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
 
                 df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
                 df.to_pickle(self.usage_history)
@@ -564,7 +566,27 @@ class AWS(Cloud):
         for tag in instance.tags:
             if tag['Key'] == 'Name':
                 return tag['Value']
-        
+
+        return ''
+
+    def get_instance_ID(self, instance_name: str):
+        """Member function: get_instance_name
+        Get the instance ID from the instance name
+        Note: AWS doesn't use unique name for instances, instead, name is an
+        attribute stored in the tags.        
+        """
+        running_instances = self.get_instances(filters = [{
+                    "Name" : "instance-state-name",
+                    "Values" : ["running"]
+        }])
+                
+        for instance in running_instances:
+            if instance.tags is None: continue
+
+            for tag in instance.tags:
+                if tag['Key'] == 'Name':
+                    if tag['Value'] == instance_name:
+                        return instance.instance_id
         return ''
 
     def get_instance_user_name(self, instance):

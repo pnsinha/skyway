@@ -34,27 +34,28 @@ class GCP(Cloud):
         #super().__init__(vendor_cfg, kwargs)
 
         # load [account].yaml under $SKYWAYROOT/etc/accounts
-        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        account_cfg = utils.load_config(account, path)
+        account_path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
+        account_cfg = utils.load_config(account, account_path)
         if account_cfg['cloud'] != 'gcp' :
             raise Exception(f'Cloud vendor gcp is not associated with this account.')
 
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
 
-        self.keyfile = path + self.account['key_file'] + '.json'
+        self.keyfile = account_path + self.account['key_file'] + '.json'
         if not os.path.isfile(self.keyfile):
             raise Exception(f"PEM key {self.keyfile} is not found.")
 
+        self.usage_history = f"{account_path}usage-{account}.pkl"
+
         # load cloud.yaml under $SKYWAYROOT/etc/
-        path = os.environ['SKYWAYROOT'] + '/etc/'
-        vendor_cfg = utils.load_config('cloud', path)
+        cloud_path = os.environ['SKYWAYROOT'] + '/etc/'
+        vendor_cfg = utils.load_config('cloud', cloud_path)
         if 'gcp' not in vendor_cfg:
             raise Exception(f'Cloud vendor gcp is undefined.')
       
         self.vendor = vendor_cfg['gcp']
         self.account_name = account
-        self.usage_history = f"usage-{self.account_name}.pkl"
 
         ComputeEngine = get_driver(Provider.GCE)
         try:
@@ -160,6 +161,8 @@ class GCP(Cloud):
         nodes = []
         current_time = datetime.now(timezone.utc)
         for node in self.driver.list_nodes():
+            if node.state != 'running':
+                continue
 
             # Get the creation time of the instance
             creation_time_str = node.extra.get('creationTimestamp')  # GCP
@@ -192,7 +195,7 @@ class GCP(Cloud):
         
          - node_type: instance type information from the Skyway definitions
          - node_names: a list of names for the nodes, to get the number of nodes
-        
+
         Return: a dictionary of instance ID (i.e., names) for created instances.
         """
         user_name = os.environ['USER']
@@ -254,8 +257,10 @@ class GCP(Cloud):
                 gpu_count = node_cfg['gpu']
 
             try:
-
+                # google-cloud-compute changed at some point, making tags empty when query the list of nodes with libcloud
                 tags = { 'node_name': node_name, 'user': user_name }
+                # instead, we add user and node name to labels when creating nodes
+
                 node = self.driver.create_node(node_name,
                                                size = node_cfg['name'],
                                                image = self.account['image_name'], 
@@ -266,7 +271,7 @@ class GCP(Cloud):
                                                    'email': self.account['service_account'],
                                                    'scopes': scopes
                                                }],
-                                               ex_labels={'goog-ec-src': 'vm_add-gcloud'},
+                                               ex_labels={'goog-ec-src': 'vm_add-gcloud', 'node_name': node_name, 'user': user_name},
                                                ex_preemptible = preemptible,
                                                ex_accelerator_type = gpu_type,
                                                ex_accelerator_count = gpu_count,
@@ -294,7 +299,7 @@ class GCP(Cloud):
         
         return nodes
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_id):
         """
         Connect to an instance using account's pem file
         [account_name].pem file should be under $SKYWAYROOT/etc/accounts
@@ -308,16 +313,30 @@ class GCP(Cloud):
         but still it requires keygen-ssh for the user on the local machine/login node.
 
         """
-        node = self.driver.ex_get_node(node_name)
-        host = node.public_ips[0]
-        user_name = os.environ['USER']
-        print("Connecting to host: " + host)
-        cmd = 'ssh ' + user_name + '@' + host
-        os.system(cmd)
+        #node = self.driver.ex_get_node(node_name)
+        
+        node = None
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.id == node_id:
+                    break
+        if node is not None:
+            host = node.public_ips[0]
+
+            user_name = os.environ['USER']
+            print("Connecting to host: " + host)
+
+            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+            cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {user_name}@{host}' "
+        
+            #cmd = 'ssh ' + user_name + '@' + host
+            os.system(cmd)
+        else:
+            print(f"Node {node_id} does not exist.")
         return
 
 
-    def destroy_nodes(self, node_names, need_confirmation=True):
+    def destroy_nodes(self, node_names=[], need_confirmation=True):
         '''
         Destroy all the nodes (instances) given the list of node names
         NOTE: should store the running cost and time before terminating the node(s)
@@ -327,11 +346,15 @@ class GCP(Cloud):
 
         user_name = os.environ['USER']
 
-        for name in node_names:
-            try:
-                node = self.driver.ex_get_node(name)
+        for node in self.driver.list_nodes():
+            if node.state != "running":
+                continue
+
+            for name in node_names:
+                print(f"current node: {node.name}: {name}")
                 if node.name == name:
                     node_user_name = self.get_instance_user_name(node)
+                    print(f"{node_user_name}")
                     if  node_user_name != user_name:
                         print(f"Cannot destroy an instance {name} created by other users")
                         continue
@@ -343,12 +366,13 @@ class GCP(Cloud):
                     running_time = current_time - creation_time
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
-
+                    print(f"need_confirmation: {need_confirmation}")
                     if need_confirmation == True:
                         response = input(f"Do you want to destroy {node.name} (running cost ${running_cost})? (y/n) ")
                         if response != 'y':
                             continue
 
+                    print(f"destroying {node.name}")
                     self.driver.destroy_node(node)
 
                     # record the running time and cost
@@ -356,9 +380,9 @@ class GCP(Cloud):
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
                     usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
-                    
+
                     # store the record into the database
-                    data = [node.id, node.type, creation_time, current_time, running_cost, remaining_balance]
+                    data = [node.id, node.size, creation_time, current_time, running_cost, remaining_balance]
 
                     if os.path.isfile(self.usage_history):
                         df = pd.read_pickle(self.usage_history)
@@ -367,9 +391,7 @@ class GCP(Cloud):
 
                     df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
                     df.to_pickle(self.usage_history)
-
-            except:
-                continue
+            
         return
    
     def get_running_nodes(self, verbose=False):
@@ -426,7 +448,10 @@ class GCP(Cloud):
         '''
         return the user name that created the node
         '''
-        return node.extra.get('tags', {}).get('user')
+        # some change in the GCP cloud compute that makes tags empty
+        #return node.extra.get('tags', {}).get('user')
+        # adding user and node name to labels  when creating nodes
+        return node.extra.get('labels').get('user')
 
     def get_instance_name(self, node):
         """Member function: get_instance_name
@@ -438,6 +463,17 @@ class GCP(Cloud):
         """
         
         return node.name
+
+    def get_instance_ID(self, instance_name: str):
+        """Member function: get_instance_ID
+
+        """
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.name == instance_name:
+                    return node.id
+        return ''
+
 
     def get_instances(self, filters = []):
         """Member function: get_instances

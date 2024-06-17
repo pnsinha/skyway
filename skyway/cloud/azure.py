@@ -37,8 +37,8 @@ class AZURE(Cloud):
         #super().__init__(vendor_cfg, kwargs)
 
         # load [account].yaml under $SKYWAYROOT/etc/accounts
-        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        account_cfg = utils.load_config(account, path)
+        account_path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
+        account_cfg = utils.load_config(account, account_path)
         if account_cfg['cloud'] != 'azure' :
             raise Exception(f'Cloud vendor azure is not associated with this account.')
 
@@ -50,15 +50,16 @@ class AZURE(Cloud):
             content = f.read()
             self.public_key = content.strip()
 
+        self.usage_history = f"{account_path}usage-{account}.pkl"
+
         # load cloud.yaml under $SKYWAYROOT/etc/
-        path = os.environ['SKYWAYROOT'] + '/etc/'
-        vendor_cfg = utils.load_config('cloud', path)
+        cloud_path = os.environ['SKYWAYROOT'] + '/etc/'
+        vendor_cfg = utils.load_config('cloud', cloud_path)
         if 'azure' not in vendor_cfg:
             raise Exception(f'Cloud vendor azure is undefined.')
       
         self.vendor = vendor_cfg['azure']
         self.account_name = account
-        self.usage_history = f"usage-{self.account_name}.pkl"
 
         self.credentials = ClientSecretCredential(client_id=self.account['client_id'],
                                                   client_secret=self.account['client_secret'],

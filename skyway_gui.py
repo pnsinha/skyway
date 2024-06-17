@@ -47,8 +47,9 @@ class InstanceDescriptor:
         if "midway3" in self.vendor_name:
             self.connectJob([self.jobname])
         else:
-            self.account.create_nodes(self.node_type, [job_name], need_confirmation=False, walltime=self.walltime)
-        initializing = True   
+            print(f"creating node from {self.vendor_name} with account {self.account_name}")
+            self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=False, walltime=self.walltime)
+        initializing = True
         return initializing
 
     def connectJob(self, node_names):
@@ -78,6 +79,14 @@ class InstanceDescriptor:
             cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
             cmd += f" 'sinteractive -J {self.jobname} -A rcc-staff -p {partition} --nodes=1 --ntasks-per-node={ppn} --mem={mem}GB -t {self.walltime}' "
             os.system(cmd)
+
+        elif "aws" in self.vendor_name:
+            instanceID = self.account.get_instance_ID(self.jobname)
+            self.account.connect_node(instanceID)
+
+        elif "gcp" in self.vendor_name:
+            instanceID = self.account.get_instance_ID(self.jobname)
+            self.account.connect_node(instanceID)
 
     def terminateJob(self, node_names = []):
         st.write(f"Terminating instances {node_names}...")
@@ -152,7 +161,7 @@ if __name__ == "__main__":
 
     with col2:
         st.markdown("#### Requested resources")
-        job_name = st.text_input(r"$\textsf{\large Job name}$", "your_run")
+        job_name = st.text_input(r"$\textsf{\large Job name}$", "yourRun")
         
         vendor = st.selectbox(r"$\textsf{\large Service provider}$", ('Amazon Web Services (AWS)', 'Google Cloud Platform (GCP)', 'Microsoft Azure', 'RCC Midway3'), help='Cloud vendors or on-premise clusters')
 
@@ -244,7 +253,7 @@ if __name__ == "__main__":
 
         if st.button('Connect', type='primary', help="Create an interactive session on the instance"):
             instanceDescriptor.connectJob(node_names=['your_run'])
-        st.markdown("NOTE: Only support interactive sessions on the nodes provided by RCC Midway3 for now.")
+        st.markdown("NOTE: Only support interactive sessions on the nodes provided by AWS, GCP and RCC Midway3 for now.")
 
         if st.button('Terminate', help=f'Destroy the instance named {job_name}', type='primary'):
             instanceDescriptor.terminateJob(node_names=[job_name])
