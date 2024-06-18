@@ -42,7 +42,7 @@ class AWS(Cloud):
         account_path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
         account_cfg = utils.load_config(account, account_path)
         if account_cfg['cloud'] != 'aws' :
-            raise Exception(f'Cloud vendor aws is not associated with this account.')
+            raise Exception(f'Service provider aws is not associated with this account.')
 
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
@@ -610,7 +610,7 @@ class AWS(Cloud):
         Get a list of instance objects with give filters
         NOTE: if using libcloud then use self.driver.list_nodes()
         """
-        return self.ec2.instances.filter(Filters = filters)    
+        return self.ec2.instances.filter(Filters = filters)
 
     def get_unit_price_instance(self, instance):
         """

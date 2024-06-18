@@ -17,6 +17,7 @@ from skyway import cloud
 from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
 from skyway.cloud.azure import *
+from skyway.cloud.slurm import *
 
 from datetime import datetime, timezone
 
@@ -46,6 +47,8 @@ account = GCP('rcc-gcp')
 #account = GCP('ndtrung-gcp')
 #account = AZURE('ndtrung-azure')
 
+#account = SLURMCluster('rcc-slurm')
+
 # list all the node types available
 #account.get_node_types()
 
@@ -58,7 +61,7 @@ user = os.environ['USER']
 #account.get_budget()
 
 # create 1 node (instance)
-nodes = account.create_nodes('t1', ['yourRun'], walltime="00:15:00")
+#nodes = account.create_nodes('t1', ['yourRun'], walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)

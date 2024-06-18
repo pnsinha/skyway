@@ -56,7 +56,7 @@ class AZURE(Cloud):
         cloud_path = os.environ['SKYWAYROOT'] + '/etc/'
         vendor_cfg = utils.load_config('cloud', cloud_path)
         if 'azure' not in vendor_cfg:
-            raise Exception(f'Cloud vendor azure is undefined.')
+            raise Exception(f'Service provider azure is undefined.')
       
         self.vendor = vendor_cfg['azure']
         self.account_name = account
@@ -400,7 +400,7 @@ class AZURE(Cloud):
             print(f"Usage history {self.usage_history} is not available")
             data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
             df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
-            df = pd.concat([pd.DataFrame(data, columns=df.columns), df], ignore_index=True)
+            df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
             return 0, user_budget
 

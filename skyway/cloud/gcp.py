@@ -38,7 +38,7 @@ class GCP(Cloud):
         account_path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
         account_cfg = utils.load_config(account, account_path)
         if account_cfg['cloud'] != 'gcp' :
-            raise Exception(f'Cloud vendor gcp is not associated with this account.')
+            raise Exception(f'Service provider gcp is not associated with this account.')
 
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
