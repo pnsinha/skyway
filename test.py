@@ -58,7 +58,7 @@ user = os.environ['USER']
 #account.get_budget()
 
 # create 1 node (instance)
-#nodes = account.create_nodes('c1',['node1'],walltime="00:15:00")
+nodes = account.create_nodes('t1', ['yourRun'], walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)
@@ -84,7 +84,7 @@ nodes, output_str = account.list_nodes(verbose=True)
 #account.get_running_cost()
 
 # terminate an instance
-account.destroy_nodes(node_names=['yourrun'])
+#account.destroy_nodes(node_names=['yourRun'])
 #account.destroy_nodes(IDs=['i-06fc520e0c8e6fd34'])
 
 

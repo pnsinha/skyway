@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     with col2:
         st.markdown("#### Requested resources")
-        job_name = st.text_input(r"$\textsf{\large Job name}$", "yourRun")
+        job_name = st.text_input(r"$\textsf{\large Job name}$", "your-run")
         
         vendor = st.selectbox(r"$\textsf{\large Service provider}$", ('Amazon Web Services (AWS)', 'Google Cloud Platform (GCP)', 'Microsoft Azure', 'RCC Midway3'), help='Cloud vendors or on-premise clusters')
 
@@ -172,7 +172,7 @@ if __name__ == "__main__":
             vendor_short = "aws"
             accounts = ('rcc-aws', 'ndtrung-aws')
         elif 'gcp' in vendor_name:
-            node_types = ('c1 (n1-standard-1, 1-core CPU)', 'c4 (c2-standard-8, 4-core CPU)', 'g1 (n1-standard-8, 4-core CPU)')
+            node_types = ('t1 (n1-standard-1, 1-core CPU)', 'c1 (n1-standard-2, 1-core CPU, 2 hardware threads)', 'c4 (c2-standard-8, 4-core CPU)', 'g1 (n1-standard-8, 4-core CPU)')
             vendor_short = "gcp"
             accounts = ('rcc-gcp', 'ndtrung-gcp')
         elif 'azure' in vendor_name:
@@ -244,13 +244,15 @@ if __name__ == "__main__":
 
         st.markdown("#### Running nodes")
         headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']
-        
+
+        # listing all the running nodes/instances
         nodes = instanceDescriptor.list_nodes()
 
         df = pd.DataFrame(nodes, columns=headers)
         df.style.hide(axis="index")
         st.table(df)
 
+        # handle the button clicks
         if st.button('Connect', type='primary', help="Create an interactive session on the instance"):
             instanceDescriptor.connectJob(node_names=['your_run'])
         st.markdown("NOTE: Only support interactive sessions on the nodes provided by AWS, GCP and RCC Midway3 for now.")
@@ -261,4 +263,4 @@ if __name__ == "__main__":
 
         #st.markdown("#### Usage statistics")
 
-    st.markdown("""Developed by the UChicago Research Computing Center""")
+    st.markdown("""Skyway 2.0.0, Copyright 2022-2024, UChicago Research Computing Center""")

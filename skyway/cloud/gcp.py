@@ -20,6 +20,7 @@ import pandas as pd
 # apache-libcloud
 from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
+import libcloud.common.google
 
 class GCP(Cloud):
     
@@ -226,6 +227,7 @@ class GCP(Cloud):
         
         nodes = {}
         node_cfg = self.vendor['node-types'][node_type]
+        #print(f"node_type = {node_type}: {node_cfg}")
         preemptible = node_cfg['preemptible'] if 'preemptible' in node_cfg else False
 
         scopes = [
@@ -258,44 +260,48 @@ class GCP(Cloud):
 
             try:
                 # google-cloud-compute changed at some point, making tags empty when query the list of nodes with libcloud
-                tags = { 'node_name': node_name, 'user': user_name }
+                tags = [{ 'node_name': node_name, 'user': user_name }]
                 # instead, we add user and node name to labels when creating nodes
 
                 node = self.driver.create_node(node_name,
-                                               size = node_cfg['name'],
-                                               image = self.account['image_name'], 
-                                               location = location,
-                                               ex_network=network,
-                                               ex_subnetwork=subnet,
-                                               ex_service_accounts=[{
-                                                   'email': self.account['service_account'],
-                                                   'scopes': scopes
-                                               }],
-                                               ex_labels={'goog-ec-src': 'vm_add-gcloud', 'node_name': node_name, 'user': user_name},
-                                               ex_preemptible = preemptible,
-                                               ex_accelerator_type = gpu_type,
-                                               ex_accelerator_count = gpu_count,
-                                               ex_on_host_maintenance = 'TERMINATE',
-                                               ex_tags = tags,)
-                self.driver.wait_until_running([node])
+                                                size = node_cfg['name'],
+                                                image = self.account['image_name'], 
+                                                location = location,
+                                                ex_network=network,
+                                                ex_subnetwork=subnet,
+                                                ex_service_accounts=[{
+                                                    'email': self.account['service_account'],
+                                                    'scopes': scopes
+                                                }],
+                                                ex_labels={'goog-ec-src': 'vm_add-gcloud', 'node_name': node_name, 'user': user_name},
+                                                ex_preemptible = preemptible,
+                                                ex_accelerator_type = gpu_type,
+                                                ex_accelerator_count = gpu_count,
+                                                ex_on_host_maintenance = 'TERMINATE',
+                                                ex_tags = tags,)
+            except libcloud.common.google.ResourceNotFoundError as e:
+                print(f'Error: Resource not found. Details: {e}')
+            except libcloud.common.google.GoogleBaseError as e:
+                print(f'Google Cloud error occurred: {e}')
+            except Exception as e:
+                print(f"Failed to create %s. Reason: %s" % (node_name, str(e)))
 
-                # record node_type, creation time
-                creation_time_str = node.extra.get('creationTimestamp') 
-                node_type = node_cfg['name']
-                nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
+            self.driver.wait_until_running([node])
 
-                print(f'Created instance: {node.name}')
+            # record node_type, creation time
+            creation_time_str = node.extra.get('creationTimestamp') 
+            node_type = node_cfg['name']
+            nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
 
-                # ssh to the node and execute a shutdown command scheduled for walltime
-                host = node.public_ips[0]
-                user_name = os.environ['USER']
-                print("Connecting to host: " + host)
+            print(f'Created instance: {node.name}')
 
-                cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
-                os.system(cmd)
+            # ssh to the node and execute a shutdown command scheduled for walltime
+            host = node.public_ips[0]
+            user_name = os.environ['USER']
+            print("Connecting to host: " + host)
 
-            except Exception as ex:
-                logging.info("Failed to create %s. Reason: %s" % (node_name, str(ex)))
+            cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
+            os.system(cmd)           
         
         return nodes
 
@@ -351,10 +357,8 @@ class GCP(Cloud):
                 continue
 
             for name in node_names:
-                print(f"current node: {node.name}: {name}")
                 if node.name == name:
                     node_user_name = self.get_instance_user_name(node)
-                    print(f"{node_user_name}")
                     if  node_user_name != user_name:
                         print(f"Cannot destroy an instance {name} created by other users")
                         continue
@@ -366,13 +370,12 @@ class GCP(Cloud):
                     running_time = current_time - creation_time
                     instance_unit_cost = self.get_unit_price_instance(node)
                     running_cost = running_time.seconds/3600.0 * instance_unit_cost
-                    print(f"need_confirmation: {need_confirmation}")
+
                     if need_confirmation == True:
                         response = input(f"Do you want to destroy {node.name} (running cost ${running_cost})? (y/n) ")
                         if response != 'y':
                             continue
 
-                    print(f"destroying {node.name}")
                     self.driver.destroy_node(node)
 
                     # record the running time and cost
@@ -382,12 +385,12 @@ class GCP(Cloud):
                     usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
 
                     # store the record into the database
-                    data = [node.id, node.size, creation_time, current_time, running_cost, remaining_balance]
+                    data = [node_user_name, node.id, node.size, creation_time, current_time, running_cost, remaining_balance]
 
                     if os.path.isfile(self.usage_history):
                         df = pd.read_pickle(self.usage_history)
                     else:
-                        df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+                        df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
 
                     df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
                     df.to_pickle(self.usage_history)
