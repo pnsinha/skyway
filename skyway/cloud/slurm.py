@@ -16,6 +16,15 @@ from .. import utils
 from datetime import datetime, timezone
 import pandas as pd
 
+class SLURMJob:
+    def __init__(self, jobid, state, job_name, instance_type, instance_id, running_time="", start_time=""):
+        self.jobid = jobid
+        self.state = state
+        self.job_name = job_name
+        self.instance_type = instance_type
+        self.instance_id = instance_id
+        self.running_time = running_time
+        self.start_time = start_time
 
 class SLURMCluster(Cloud):
     """Documentation for SLURMCluster
@@ -140,11 +149,11 @@ class SLURMCluster(Cloud):
 
     def list_nodes(self, show_protected_nodes=False, verbose=False):
         '''
-        list all the running/stopped nodes (aka instances)
+        list all the running/queueing nodes (aka instances) using squeue
         '''
         user_name = os.environ['USER']
-        # job_id state job_name account nodelist   runningtime starttime comment"
-        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k\"; squeue -u {user_name}"
+        # job_id state job_name account nodelist   runningtime starttime comment user_name"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
 
         proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
         (out, err) = proc.communicate()
@@ -155,42 +164,42 @@ class SLURMCluster(Cloud):
         i = 0
         nodes = []
         for line in m.splitlines():
-            print(line)
-            if i > 0:
-                node_info = line.split()
+            if i == 0:
+                i = i + 1
+                continue
 
-                print(node_info)
+            node_info = line.split()
 
-                jobid = node_info[0]
-                state = node_info[1]
-                job_name = node_info[2]
-                instance_type = node_info[7] #node_info getting from comment 
-                instance_id = node_info[4]  # nodelist, can be used as public_host_ip
-                running_time = node_info[5]  #datetime.now(timezone.utc) - start_time  
-                start_time = node_info[6]
+            jobid = node_info[0]
+            state = node_info[1]
+            job_name = node_info[2]
+            instance_type = node_info[7] # node_info getting from comment 
+            instance_id = node_info[4]   # nodelist, can be used as public_host_ip
+            running_time = node_info[5]  
+            #start_time = node_info[6]
 
-                unit_price = 1.0 #self.vendor['node-types'][node_type]['price']
-                time_stamp = running_time.split()
-                running_time_hours = 0
-                # we don't expect any instance run longer than a day
-                if len(time_stamp) == 3:
-                    pt = datetime.strptime(running_time, "%H:%M:%S")
-                    running_time_hours = pt.second + float(pt.minute)/60.0 + pt.hour
-                elif len(time_stamp) == 2:
-                    pt = datetime.strptime(running_time, "%M:%S")
-                    running_time_hours = pt.second + float(pt.minute)/60.0 + pt.hour
-                else:
-                    print(f"Running time: {running_time}")
+            unit_price = 1.0 #self.vendor['node-types'][node_type]['price']
+            time_stamp = running_time.split(':')
+            running_time_hours = 0
+            # we don't expect any instance run longer than a day
+            if len(time_stamp) == 3:
+                pt = datetime.strptime(running_time, "%H:%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            elif len(time_stamp) == 2:
+                pt = datetime.strptime(running_time, "%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            else:
+                print(f"Running time: {running_time} {time_stamp}")
 
-                running_cost = running_time_hours * unit_price
+            running_cost = running_time_hours * unit_price
 
-                nodes.append([job_name,
-                              state,
-                              instance_type,
-                              jobid,
-                              instance_id,
-                              running_time,
-                              running_cost])
+            nodes.append([job_name,
+                          state,
+                          instance_type,
+                          jobid,
+                          instance_id,
+                          running_time,
+                          running_cost])
             i = i + 1
         
         output_str = ''
@@ -206,7 +215,7 @@ class SLURMCluster(Cloud):
 
     def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         '''
-        create several nodes (aka instances) given a list of node names
+        create several nodes (aka instances) given a list of node names using salloc
         '''
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
@@ -216,9 +225,9 @@ class SLURMCluster(Cloud):
         remaining_balance = user_budget - usage
         unit_price = self.vendor['node-types'][node_type]['price']
         if need_confirmation == True:
-            print(f"User budget: ${user_budget:.3f}")
-            print(f"+ Usage    : ${usage:.3f}")
-            print(f"+ Available: ${remaining_balance:.3f}")
+            print(f"User budget: {user_budget:.3f} SU")
+            print(f"+ Usage    : {usage:.3f} SU")
+            print(f"+ Available: {remaining_balance:.3f} SU")
             response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
             if response == 'n':
                 return
@@ -229,39 +238,167 @@ class SLURMCluster(Cloud):
             walltime_str = walltime
         
         ntasks_per_node = self.vendor['node-types'][node_type]['cores']
-        memgb = self.vendor['node-types'][node_type]['memgb']
+        memgb = int(self.vendor['node-types'][node_type]['memgb'])
 
         count = len(node_names)
         if count <= 0:
             raise Exception(f'List of node names is empty.')
-       
-        cmd = f"salloc -A {self.account['account_id']} -N {count} --ntasks-per-node={ntasks_per_node} --mem={memgb}GB -t {walltime_str} --comment={node_type}' "
+
+        job_name = node_names[0]
+        cmd = f"salloc --account={self.account['account_id']}"
+        cmd += f" -J {job_name}"
+        cmd += f" --nodes={count}"
+        cmd += f" --ntasks-per-node={ntasks_per_node}"
+        cmd += f" --mem={memgb}GB"
+        cmd += f" --walltime={walltime_str}"
+        cmd += f" --comment={node_type}"
         print(f"{cmd}")
         os.system(cmd)
 
     def connect_node(self, node_name):
         '''
-        connect to a node (aka instance) via SSH
+        connect to a node (aka instance) via SSH: for slurm, node name is alias to the host IP
         '''
-        pass
+        print(f"Instance ID: {node_name}")
+        
+        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd += f" 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
+        #print(f"{cmd}")
+        os.system(cmd)
 
-    def destroy_nodes(self, node_names, need_confirmation=True):
+    def destroy_nodes(self, IDs = [], need_confirmation=True):
         '''
-        destroy several nodes (aka instances) given a list of node names
+        destroy several nodes (aka instances) given a list of node names using scancel
         '''
-        pass
+        user_name = os.environ['USER']
+
+        # maybe no need to check if the job ID belongs the current user because scancel will throw errors otherwise
+
+        for instanceID in IDs:
+            print(f"Cancelling job {instanceID}")
+            cmd = f"scancel {instanceID}"
+            os.system(cmd)
 
     def get_running_nodes(self, verbose=False):
         '''
         list all the running nodes (aka instances)
         '''
-        pass
+        user_name = os.environ['USER']
+
+        # job_id state job_name account nodelist   runningtime starttime comment user_name"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+
+        proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+        (out, err) = proc.communicate()
+      
+        # encode output as utf-8 from bytes, remove newline character
+        m = out.decode('utf-8').strip()
+
+        i = 0
+        nodes = []
+        for line in m.splitlines():
+            if i == 0:
+                i = i + 1
+                continue
+
+            node_info = line.split()
+
+            jobid = node_info[0]
+            state = node_info[1]
+            if state.lower() != "r":
+                continue
+            job_name = node_info[2]
+            instance_type = node_info[7] #node_info getting from comment 
+            instance_id = node_info[4]  # nodelist, can be used as public_host_ip
+            running_time = node_info[5]  #datetime.now(timezone.utc) - start_time  
+            start_time = node_info[6]
+
+            unit_price = 1.0 #self.vendor['node-types'][node_type]['price']
+            time_stamp = running_time.split(':')
+            running_time_hours = 0
+            # we don't expect any instance run longer than a day
+            if len(time_stamp) == 3:
+                pt = datetime.strptime(running_time, "%H:%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            elif len(time_stamp) == 2:
+                pt = datetime.strptime(running_time, "%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            else:
+                print(f"Running time: {running_time} {time_stamp}")
+
+            running_cost = running_time_hours * unit_price
+
+            nodes.append([job_name,
+                            state,
+                            instance_type,
+                            jobid,
+                            instance_id,
+                            running_time,
+                            running_cost])
+            i = i + 1
+        
+        output_str = ''
+        if verbose == True:
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
+            print("")
+        else:
+            output_str = io.StringIO()
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print("", file=output_str)
+        return nodes, output_str
+
+    def get_running_cost(self, verbose=True):
+        total_cost = 0.0
+        user_name = os.environ['USER']
+
+        # job_id state job_name account nodelist   runningtime starttime comment user_name"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+
+        proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+        (out, err) = proc.communicate()
+      
+        # encode output as utf-8 from bytes, remove newline character
+        m = out.decode('utf-8').strip()
+
+        i = 0
+        nodes = []
+        for line in m.splitlines():
+            if i == 0:
+                i = i + 1
+                continue
+
+            node_info = line.split()
+            state = node_info[1]
+            if state.lower() != "r":
+                continue
+            running_time = node_info[5]
+
+            unit_price = 1.0 #self.vendor['node-types'][node_type]['price']
+            time_stamp = running_time.split(':')
+            running_time_hours = 0
+            # we don't expect any instance run longer than a day
+            if len(time_stamp) == 3:
+                pt = datetime.strptime(running_time, "%H:%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            elif len(time_stamp) == 2:
+                pt = datetime.strptime(running_time, "%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            else:
+                print(f"Running time: {running_time} {time_stamp}")
+
+            total_cost = total_cost + running_time_hours * unit_price
+            i = i + 1
+
+        return total_cost
 
     def execute(self, node_name: str, **kwargs):
         '''
         execute commands on a node
         '''
-        pass
+        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd += f" 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' -t '{command}' "
+
+        os.system(cmd)
 
     def get_host_ip(self, node_name):
         '''
@@ -283,17 +420,33 @@ class SLURMCluster(Cloud):
         """
         user_name = os.environ['USER']
 
-        nodes = []
-            
-        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %13i %N 0.0 0.0\"; squeue -u {user_name}"
+        # job_id state job_name account nodelist   runningtime starttime comment user_name"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+
         proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
         (out, err) = proc.communicate()
       
         # encode output as utf-8 from bytes, remove newline character
         m = out.decode('utf-8').strip()
-        # convert to a list
-        m = m.split()
 
-        nodes = [m]
+        i = 0
+        nodes = []
+        for line in m.splitlines():
+            if i == 0:
+                i = i + 1
+                continue
 
+            node_info = line.split()
+            
+            jobid = node_info[0]
+            state = node_info[1]
+            job_name = node_info[2]
+            instance_type = node_info[7] # node_info getting from comment 
+            instance_id = node_info[4]   # nodelist, can be used as public_host_ip
+            running_time = node_info[5]
+            start_time = node_info[6]
+
+            instance = SLURMJob(jobid, state, job_name, instance_type, instance_id, running_time, start_time)
+            nodes.append(instance)
+            
         return nodes

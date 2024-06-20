@@ -63,16 +63,16 @@ user_name = os.environ['USER']
 #account.get_budget()
 
 # create 1 node (instance)
-#nodes = account.create_nodes('t1', ['your-run'], walltime="00:15:00")
+nodes = account.create_nodes('t1', ['your-run'], walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)
-nodes, output_str = account.list_nodes(verbose=True)
+#nodes, output_str = account.list_nodes(verbose=True)
 
 
 #account.get_cost_and_usage("2024-05-30", "2024-06-04", verbose=True)
 #account.get_budget_api()
-#nodes = account.get_running_nodes(verbose=True)
+nodes = account.get_running_nodes(verbose=True)
 
 # connect to an instance via SSH
 # NOTE: 
@@ -86,6 +86,7 @@ nodes, output_str = account.list_nodes(verbose=True)
 # where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
 
 #account.connect_node('node1')
+#account.connect_node('midway3-0038')
 
 # get the current cost of all the running instances
 #account.get_running_cost()
@@ -93,6 +94,9 @@ nodes, output_str = account.list_nodes(verbose=True)
 # terminate an instance
 #account.destroy_nodes(node_names=['yourRun'])
 #account.destroy_nodes(IDs=['i-06fc520e0c8e6fd34'])
+
+# Slurm service needs job IDs
+#account.destroy_nodes(IDs=['21138341'])
 
 
 
