@@ -142,7 +142,67 @@ class SLURMCluster(Cloud):
         '''
         list all the running/stopped nodes (aka instances)
         '''
-        pass
+        user_name = os.environ['USER']
+        # job_id state job_name account nodelist   runningtime starttime comment"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k\"; squeue -u {user_name}"
+
+        proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+        (out, err) = proc.communicate()
+      
+        # encode output as utf-8 from bytes, remove newline character
+        m = out.decode('utf-8').strip()
+
+        i = 0
+        nodes = []
+        for line in m.splitlines():
+            print(line)
+            if i > 0:
+                node_info = line.split()
+
+                print(node_info)
+
+                jobid = node_info[0]
+                state = node_info[1]
+                job_name = node_info[2]
+                instance_type = node_info[7] #node_info getting from comment 
+                instance_id = node_info[4]  # nodelist, can be used as public_host_ip
+                running_time = node_info[5]  #datetime.now(timezone.utc) - start_time  
+                start_time = node_info[6]
+
+                unit_price = 1.0 #self.vendor['node-types'][node_type]['price']
+                time_stamp = running_time.split()
+                running_time_hours = 0
+                # we don't expect any instance run longer than a day
+                if len(time_stamp) == 3:
+                    pt = datetime.strptime(running_time, "%H:%M:%S")
+                    running_time_hours = pt.second + float(pt.minute)/60.0 + pt.hour
+                elif len(time_stamp) == 2:
+                    pt = datetime.strptime(running_time, "%M:%S")
+                    running_time_hours = pt.second + float(pt.minute)/60.0 + pt.hour
+                else:
+                    print(f"Running time: {running_time}")
+
+                running_cost = running_time_hours * unit_price
+
+                nodes.append([job_name,
+                              state,
+                              instance_type,
+                              jobid,
+                              instance_id,
+                              running_time,
+                              running_cost])
+            i = i + 1
+        
+        output_str = ''
+        if verbose == True:
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
+            print("")
+        else:
+            output_str = io.StringIO()
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print("", file=output_str)
+        return nodes, output_str
+
 
     def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
         '''
@@ -175,7 +235,7 @@ class SLURMCluster(Cloud):
         if count <= 0:
             raise Exception(f'List of node names is empty.')
        
-        cmd = f"salloc -A {self.account['account_id']} -N {count} --ntasks-per-node={ntasks_per_node} --mem={memgb}GB -t {walltime_str}' "
+        cmd = f"salloc -A {self.account['account_id']} -N {count} --ntasks-per-node={ntasks_per_node} --mem={memgb}GB -t {walltime_str} --comment={node_type}' "
         print(f"{cmd}")
         os.system(cmd)
 
