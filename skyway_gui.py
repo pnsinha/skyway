@@ -11,6 +11,7 @@ import skyway
 from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
 from skyway.cloud.azure import *
+from skyway.cloud.slurm import *
 
 import os
 import subprocess

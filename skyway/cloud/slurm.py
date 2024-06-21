@@ -17,12 +17,12 @@ from datetime import datetime, timezone
 import pandas as pd
 
 class SLURMJob:
-    def __init__(self, jobid, state, job_name, instance_type, instance_id, running_time="", start_time=""):
+    def __init__(self, jobid, state, job_name, instance_type, host, running_time="", start_time=""):
         self.jobid = jobid
         self.state = state
         self.job_name = job_name
         self.instance_type = instance_type
-        self.instance_id = instance_id
+        self.host = host
         self.running_time = running_time
         self.start_time = start_time
 
@@ -138,11 +138,24 @@ class SLURMCluster(Cloud):
 
     def get_cost_and_usage_from_db(self, user_name):
         '''
-        compute the accumulating cost from the pkl database
+        compute the accumulating cost from the SLURM database
         and the remaining balance
         '''
-        accumulating_cost = 0
-        remaining_balance = 0
+        user_name = os.environ['USER']
+
+        cmd = f"rcchelp usage --user {user_name} | awk \'$1 == \"{user_name}\" " 
+        cmd += "{print $2}\' "
+        proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+        (out, err) = proc.communicate()
+        out = out.decode('utf-8').strip()
+        accumulating_cost = float(out)
+
+        cmd = "rcchelp balance -a rcc-staff | awk \'$1 == \"rcc-staff\" {print $4}\' "
+        proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+        (out, err) = proc.communicate()
+        out = out.decode('utf-8').strip()
+        remaining_balance = float(out)
+
         return accumulating_cost, remaining_balance
 
     # instance operations
@@ -250,7 +263,7 @@ class SLURMCluster(Cloud):
         cmd += f" --nodes={count}"
         cmd += f" --ntasks-per-node={ntasks_per_node}"
         cmd += f" --mem={memgb}GB"
-        cmd += f" --walltime={walltime_str}"
+        cmd += f" --time={walltime_str}"
         cmd += f" --comment={node_type}"
         print(f"{cmd}")
         os.system(cmd)
@@ -259,7 +272,7 @@ class SLURMCluster(Cloud):
         '''
         connect to a node (aka instance) via SSH: for slurm, node name is alias to the host IP
         '''
-        print(f"Instance ID: {node_name}")
+        print(f"Node name: {node_name}")
         
         cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
         cmd += f" 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
@@ -308,9 +321,9 @@ class SLURMCluster(Cloud):
             if state.lower() != "r":
                 continue
             job_name = node_info[2]
-            instance_type = node_info[7] #node_info getting from comment 
-            instance_id = node_info[4]  # nodelist, can be used as public_host_ip
-            running_time = node_info[5]  #datetime.now(timezone.utc) - start_time  
+            instance_type = node_info[7] # node_info getting from comment 
+            host = node_info[4]   # nodelist, can be used as public_host_ip
+            running_time = node_info[5]  # datetime.now(timezone.utc) - start_time  
             start_time = node_info[6]
 
             unit_price = 1.0 #self.vendor['node-types'][node_type]['price']
@@ -329,12 +342,12 @@ class SLURMCluster(Cloud):
             running_cost = running_time_hours * unit_price
 
             nodes.append([job_name,
-                            state,
-                            instance_type,
-                            jobid,
-                            instance_id,
-                            running_time,
-                            running_cost])
+                          state,
+                          instance_type,
+                          jobid,
+                          host,
+                          running_time,
+                          running_cost])
             i = i + 1
         
         output_str = ''
@@ -400,11 +413,31 @@ class SLURMCluster(Cloud):
 
         os.system(cmd)
 
-    def get_host_ip(self, node_name):
+    def get_instance_ID(self, instance_name: str):
         '''
-        get the public IP of a node name
+        return the job ID of a job name (instance name) used for scancel in destroy_nodes()
         '''
-        pass
+        nodes, _ = self.get_running_nodes(verbose=False)
+        instance_ID = None
+        for node in nodes:
+            # node = [job_name, state, instance_type, jobid, instance_id, running_time, running_cost]
+            if node[0] == instance_name:
+                instance_ID = node[3]
+        return instance_ID
+
+
+    def get_host_ip(self, instance_name):
+        '''
+        get the public IP or host (node list for SLURM) of a instance (job) name
+        
+        '''
+        nodes, _ = self.get_running_nodes(verbose=False)
+        instance_ID = None
+        for node in nodes:
+            # node = [job_name, state, instance_type, jobid, instance_id, running_time, running_cost]
+            if node[0] == instance_name:
+                instance_ID = node[4]
+        return instance_ID
 
     def get_unit_price(self, node_type: str):
         '''
