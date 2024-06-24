@@ -142,6 +142,16 @@ class SLURMCluster(Cloud):
         and the remaining balance
         '''
         user_name = os.environ['USER']
+        user_budget = self.users[user_name]['budget']
+
+        if not os.path.isfile(self.usage_history):
+            print(f"Usage history {self.usage_history} is not available")
+            data = [user_name, "--", "--", "00:00:00", "00:00:00", "0.0", user_budget]
+            df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            #df = pd.DataFrame(columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
+            df.to_pickle(self.usage_history)
+            return 0, user_budget
 
         cmd = f"rcchelp usage --user {user_name} | awk \'$1 == \"{user_name}\" " 
         cmd += "{print $2}\' "
@@ -166,7 +176,7 @@ class SLURMCluster(Cloud):
         '''
         user_name = os.environ['USER']
         # job_id state job_name account nodelist   runningtime starttime comment user_name"
-        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name} -h"
 
         proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
         (out, err) = proc.communicate()
@@ -289,6 +299,57 @@ class SLURMCluster(Cloud):
 
         for instanceID in IDs:
             print(f"Cancelling job {instanceID}")
+            
+            user_name = os.environ['USER']
+            # job_id state job_name account nodelist   runningtime starttime comment user_name"
+            cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -j {instanceID} -h"
+
+            proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+            (out, err) = proc.communicate()
+        
+            # encode output as utf-8 from bytes, remove newline character
+            line = out.decode('utf-8').strip()
+
+            
+            node_info = line.split()
+
+            job_user_name = node_info[8]
+            if job_user_name != user_name:
+                continue
+            jobid = node_info[0]
+            state = node_info[1]        
+            job_name = node_info[2]     
+            instance_type = node_info[7] # node_info getting from comment 
+            instance_id = node_info[4]   # nodelist, can be used as public_host_ip
+            running_time = node_info[5]  
+            start_time = node_info[6]
+            
+            unit_price = self.vendor['node-types'][instance_type]['price']
+            time_stamp = running_time.split(':')
+            running_time_hours = 0
+            # we don't expect any instance run longer than a day
+            if len(time_stamp) == 3:
+                pt = datetime.strptime(running_time, "%H:%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            elif len(time_stamp) == 2:
+                pt = datetime.strptime(running_time, "%M:%S")
+                running_time_hours = float(pt.second)/3600.0 + float(pt.minute)/60.0 + pt.hour
+            else:
+                print(f"Running time: {running_time} {time_stamp}")
+
+            running_cost = running_time_hours * unit_price
+        
+            # store the record into the database
+            data = [job_user_name, jobid, instance_type, start_time, datetime.now(timezone.utc), running_cost]
+
+            if os.path.isfile(self.usage_history):
+                df = pd.read_pickle(self.usage_history)
+            else:
+                df = pd.DataFrame([], columns=['User','JobID','InstanceType','Start','End', 'Cost'])
+
+            df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
+            df.to_pickle(self.usage_history)
+
             cmd = f"scancel {instanceID}"
             os.system(cmd)
 
@@ -299,7 +360,7 @@ class SLURMCluster(Cloud):
         user_name = os.environ['USER']
 
         # job_id state job_name account nodelist   runningtime starttime comment user_name"
-        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name} -h"
 
         proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
         (out, err) = proc.communicate()
@@ -310,10 +371,7 @@ class SLURMCluster(Cloud):
         i = 0
         nodes = []
         for line in m.splitlines():
-            if i == 0:
-                i = i + 1
-                continue
-
+            
             node_info = line.split()
 
             jobid = node_info[0]
@@ -365,7 +423,7 @@ class SLURMCluster(Cloud):
         user_name = os.environ['USER']
 
         # job_id state job_name account nodelist   runningtime starttime comment user_name"
-        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name} -h"
 
         proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
         (out, err) = proc.communicate()
@@ -376,9 +434,6 @@ class SLURMCluster(Cloud):
         i = 0
         nodes = []
         for line in m.splitlines():
-            if i == 0:
-                i = i + 1
-                continue
 
             node_info = line.split()
             state = node_info[1]
@@ -454,7 +509,7 @@ class SLURMCluster(Cloud):
         user_name = os.environ['USER']
 
         # job_id state job_name account nodelist   runningtime starttime comment user_name"
-        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name}"
+        cmd = f"export SQUEUE_FORMAT=\"%13i %.4t %24j %16a %N %M %V %k %u\"; squeue -u {user_name} -h"
 
         proc = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
         (out, err) = proc.communicate()
@@ -465,10 +520,7 @@ class SLURMCluster(Cloud):
         i = 0
         nodes = []
         for line in m.splitlines():
-            if i == 0:
-                i = i + 1
-                continue
-
+  
             node_info = line.split()
             
             jobid = node_info[0]

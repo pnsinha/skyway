@@ -111,16 +111,16 @@ class AZURE(Cloud):
                 node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
                 instance_unit_cost = self.get_unit_price_instance(node)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
-
-                nodes.append([node.name, node.state, node_type, node.id, running_time, running_cost])
+             
+                nodes.append([node.name, node.state, node_type, node.id, "n/a", running_time, running_cost])
 
         output_str = ''
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Elapsed Time', 'Running Cost']))
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
         else:
             output_str = io.StringIO()
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
             print("", file=output_str)
         return nodes, output_str            
 
@@ -273,6 +273,11 @@ class AZURE(Cloud):
             if node is None:
                 raise ValueError(f"Node {name} not found.")
 
+            node_user_name = self.get_instance_user_name(node)
+            if  node_user_name != user_name:
+                print(f"Cannot destroy an instance {name} created by other users")
+                continue
+
             creation_time_str = node.extra.get('properties')['timeCreated']  # Azure
             
             # Convert the creation time from string to datetime object
@@ -292,18 +297,19 @@ class AZURE(Cloud):
                 response = input(f"Do you want to destroy {node.name} (running cost ${running_cost:0.5f})? (y/n) ")
                 if response != 'y':
                     continue
-
             # record the running time and cost
             running_time = datetime.now(timezone.utc) - creation_time
             running_cost = running_time.seconds/3600.0 * instance_unit_cost
-
+            usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+            
             # store the record into the database
-            data = [node.id, node_type, creation_time, datetime.now(timezone.utc), running_cost]
-
+            data = [node_user_name, node.id, node_type, 
+                    creation_time, datetime.now(timezone.utc), running_cost, remaining_balance]
+            
             if os.path.isfile(self.usage_history):
                 df = pd.read_pickle(self.usage_history)
             else:
-                df = pd.DataFrame([], columns=['InstanceID','InstanceType','Start','End', 'Cost'])
+                df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost','Balance'])
 
             df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
@@ -399,7 +405,7 @@ class AZURE(Cloud):
         if not os.path.isfile(self.usage_history):
             print(f"Usage history {self.usage_history} is not available")
             data = [user_name, "--", "--", "00:00:00", "00:00:00", 0.0, user_budget]
-            df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End', 'Cost', 'Balance'])
+            df = pd.DataFrame([], columns=['User','InstanceID','InstanceType','Start','End','Cost','Balance'])
             df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
             return 0, user_budget

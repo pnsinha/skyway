@@ -47,9 +47,9 @@ from skyway.service import core
 #account = AWS('rcc-aws')
 #account = GCP('rcc-gcp')
 #account = GCP('ndtrung-gcp')
-#account = AZURE('ndtrung-azure')
+account = AZURE('rcc-azure')
 
-account = SLURMCluster('rcc-slurm')
+#account = SLURMCluster('rcc-slurm')
 
 # list all the node types available
 #account.get_node_types()
@@ -63,16 +63,16 @@ user_name = os.environ['USER']
 #account.get_budget()
 
 # create 1 node (instance)
-nodes = account.create_nodes('t1', ['your-run'], walltime="00:15:00")
+#nodes = account.create_nodes('t1', ['your-run'], walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)
-#nodes, output_str = account.list_nodes(verbose=True)
+nodes, output_str = account.list_nodes(verbose=True)
 
 
 #account.get_cost_and_usage("2024-05-30", "2024-06-04", verbose=True)
 #account.get_budget_api()
-nodes = account.get_running_nodes(verbose=True)
+#nodes = account.get_running_nodes(verbose=True)
 
 # connect to an instance via SSH
 # NOTE: 
