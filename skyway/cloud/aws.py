@@ -247,6 +247,30 @@ class AWS(Cloud):
         #print(f"{cmd}")
         os.system(cmd)
 
+    def execute(self, instance_ID: str, **kwargs):
+        '''
+        execute commands on a node
+        Example:
+           execute(node_name='your-node', binary="python", arg1="input.txt", arg2="output.txt")
+           execute(node_name='your-node', binary="mpirun -np 4 my_app", arg1="input.txt", arg2="output.txt")
+        '''
+        ip = self.get_host_ip(instance_ID)
+
+        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
+        pem_file_full_path = path + self.account['key_name'] + '.pem'
+        username = self.vendor['username']
+        region = self.account['region']
+        ip_converted = ip.replace('.','-')
+
+        command = ""
+        for key, value in kwargs.items():
+            command += value + " "
+
+        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd += f" 'ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' -t '{command}' "
+
+        os.system(cmd)
+
     def destroy_nodes(self, node_names=None, IDs=None, need_confirmation=True):
         """Member function: destroy nodes
         Destroy all the nodes (instances) given the list of node names

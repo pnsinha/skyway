@@ -341,6 +341,32 @@ class GCP(Cloud):
             print(f"Node {node_id} does not exist.")
         return
 
+    def execute(self, node_id: str, **kwargs):
+        '''
+        execute commands on a node
+        Example:
+           execute(node_name='your-node', binary="python", arg1="input.txt", arg2="output.txt")
+           execute(node_name='your-node', binary="mpirun -np 4 my_app", arg1="input.txt", arg2="output.txt")
+        '''
+        node = None
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.id == node_id:
+                    break
+        if node is not None:
+            host = node.public_ips[0]
+            user_name = os.environ['USER']
+
+            command = ""
+            for key, value in kwargs.items():
+                command += value + " "
+
+            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+            cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {user_name}@{host}' -t '{command}' "
+
+            os.system(cmd)
+        else:
+            print(f"Node {node_id} does not exist.")            
 
     def destroy_nodes(self, node_names=[], need_confirmation=True):
         '''

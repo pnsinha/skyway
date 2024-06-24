@@ -254,6 +254,24 @@ class AZURE(Cloud):
 
         return nodes
 
+    def execute(self, node_name: str, **kwargs):
+        '''
+        execute commands on a node
+        Example:
+           execute(node_name='your-node', binary="python", arg1="input.txt", arg2="output.txt")
+           execute(node_name='your-node', binary="mpirun -np 4 my_app", arg1="input.txt", arg2="output.txt")
+        '''
+        
+        command = ""
+        for key, value in kwargs.items():
+            command += value + " "
+        '''
+        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {username}@{host}' -t '{command}' "
+        os.system(cmd)
+        '''
+        
+
     def connect_node(self, node_name):
         pass
 
