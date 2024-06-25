@@ -187,9 +187,6 @@ class SLURMCluster(Cloud):
         i = 0
         nodes = []
         for line in m.splitlines():
-            if i == 0:
-                i = i + 1
-                continue
 
             node_info = line.split()
 
@@ -340,12 +337,13 @@ class SLURMCluster(Cloud):
             running_cost = running_time_hours * unit_price
         
             # store the record into the database
-            data = [job_user_name, jobid, instance_type, start_time, datetime.now(timezone.utc), running_cost]
+            usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+            data = [job_user_name, jobid, instance_type, start_time, datetime.now(timezone.utc), running_cost, remaining_balance]
 
             if os.path.isfile(self.usage_history):
                 df = pd.read_pickle(self.usage_history)
             else:
-                df = pd.DataFrame([], columns=['User','JobID','InstanceType','Start','End', 'Cost'])
+                df = pd.DataFrame([], columns=['User','JobID','InstanceType','Start','End', 'Cost', 'Balance'])
 
             df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
