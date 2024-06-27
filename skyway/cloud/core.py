@@ -112,6 +112,12 @@ class Cloud():
         '''
         pass
 
+    def execute_script(self, node_id: str, script_name: str):
+        '''
+        execute all the lines in a script on a compute node
+        '''
+        pass
+
     def get_host_ip(self, node_name):
         '''
         get the public IP of a node name

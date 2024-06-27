@@ -366,7 +366,27 @@ class GCP(Cloud):
 
             os.system(cmd)
         else:
-            print(f"Node {node_id} does not exist.")            
+            print(f"Node {node_id} does not exist.")
+
+    def execute_script(self, node_id: str, script_name: str):
+        '''
+        execute all the lines in a script on a compute node
+        '''
+        node = None
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.id == node_id:
+                    break
+        if node is not None:
+            host = node.public_ips[0]
+            user_name = os.environ['USER']
+            script_cmd = utils.script2cmd(script_name)
+            
+            cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t '{script_cmd}' "
+            os.system(cmd)
+        else:
+            print(f"Node {node_id} does not exist.") 
+
 
     def destroy_nodes(self, node_names=[], need_confirmation=True):
         '''

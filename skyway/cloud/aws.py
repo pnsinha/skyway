@@ -271,6 +271,24 @@ class AWS(Cloud):
 
         os.system(cmd)
 
+
+    def execute_script(self, instance_ID: str, script_name: str):
+        '''
+        execute all the lines in a script on an instance
+        '''
+        ip = self.get_host_ip(instance_ID)
+
+        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
+        pem_file_full_path = path + self.account['key_name'] + '.pem'
+        username = self.vendor['username']
+        region = self.account['region']
+        ip_converted = ip.replace('.','-')
+
+        script_cmd = utils.script2cmd(script_name)
+        cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'eval {script_cmd}' "
+        os.system(cmd)
+
+
     def destroy_nodes(self, node_names=None, IDs=None, need_confirmation=True):
         """Member function: destroy nodes
         Destroy all the nodes (instances) given the list of node names

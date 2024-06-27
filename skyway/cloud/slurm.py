@@ -473,6 +473,14 @@ class SLURMCluster(Cloud):
 
         os.system(cmd)
 
+    def execute_script(self, node_name: str, script_name: str):
+        '''
+        execute all the lines in a script on a compute node
+        '''
+        script_cmd = utils.script2cmd(script_name)
+        cmd = f"ssh  -o StrictHostKeyChecking=accept-new {node_name} -t 'eval {script_cmd}' "
+        os.system(cmd)
+
     def get_instance_ID(self, instance_name: str):
         '''
         return the job ID of a job name (instance name) used for scancel in destroy_nodes()

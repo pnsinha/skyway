@@ -14,25 +14,15 @@ from skyway.cloud.slurm import *
 
 from datetime import datetime, timezone
 from io import StringIO
-
 import argparse
 
 # export SKYWAYROOT=/project/rcc/trung/skyway-github
-
-# load a yaml file into a dictionary
-
-def load_config(module_yaml_file: str):
-    if not os.path.isfile(module_yaml_file):
-        raise Exception(f'Configuration file {module_yaml_file} cannot be found.')
-
-    with open(module_yaml_file, 'r') as f:
-        return yaml.load(f.read(), Loader=yaml.FullLoader)
 
 class InstanceDescriptor:
     def __init__(self, jobname: str, account_name: str, node_type: str, walltime: str, vendor_name: str):
         self.jobname = jobname
         self.account_name = account_name
-        self.node_type = node_type.split(' ')[0]
+        self.node_type = node_type
         self.walltime = walltime
         self.vendor_name = vendor_name
 
@@ -48,14 +38,25 @@ class InstanceDescriptor:
 
         self.user = os.environ['USER']
 
-    def submitJob(self):
-        #st.warning("Do you want to create this instance?")
-        #if st.button("Yes"):
-        
+    def submitJob(self, script_name=None):
         print(f"creating node from {self.vendor_name} with account {self.account_name}")
-        self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=False, walltime=self.walltime)
-        initializing = True
-        return initializing
+        nodes = self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=False, walltime=self.walltime)
+        
+        if script_name is not None:
+            if "midway3" in self.vendor_name:
+                # for on-premises like midway3 instanceID is the host ip (which happens to be the node name)
+                instanceID = self.account.get_host_ip(self.jobname)
+                self.account.execute_script(instanceID, script_name)
+
+            elif "aws" in self.vendor_name:
+                instanceID = self.account.get_instance_ID(self.jobname)
+                self.account.execute_script(instanceID, script_name)
+
+            elif "gcp" in self.vendor_name:
+                instanceID = self.account.get_instance_ID(self.jobname)
+                self.account.execute_script(instanceID, script_name)
+
+        return nodes
 
     def connectJob(self, node_names):
         '''
@@ -63,6 +64,7 @@ class InstanceDescriptor:
         '''
         
         if "midway3" in self.vendor_name:
+            # for on-premises like midway3 instanceID is the host ip (which happens to be the node name)
             instanceID = self.account.get_host_ip(self.jobname)
             self.account.connect_node(instanceID)
 
@@ -75,7 +77,6 @@ class InstanceDescriptor:
             self.account.connect_node(instanceID)
 
     def terminateJob(self, node_names = []):
-        st.write(f"Terminating instances {node_names}...")
         if "midway3" in self.vendor_name:
             instanceID = self.account.get_instance_ID(self.jobname)
             self.account.destroy_nodes(IDs=[instanceID], need_confirmation=False)
@@ -105,7 +106,7 @@ if __name__ == "__main__":
 
     msg = "Skyway batch mode"
     parser = argparse.ArgumentParser(description=msg)
-    parser.add_argument('-J', dest='jobname', default="", help="Job name")
+    parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
     parser.add_argument('--account', dest='account', default="", help="Account name")
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
     parser.add_argument('--partition', dest='partition', default="", help="Partition")
@@ -114,21 +115,21 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    jobname = args.jobname
-    account = args.account
-    node_type = args.partition
+    job_name = args.jobname
+    account_name = args.account
+    node_type = args.constraint
     walltime = args.walltime
     provider = args.provider.lower()
     
     if provider == "":
         # try to infer the vendor name from account
-        if 'aws' in account:
+        if 'aws' in account_name:
             vendor_name = "aws"
-        elif 'gcp' in account:
+        elif 'gcp' in account_name:
             vendor_name = "gcp"
-        elif 'azure' in account:
+        elif 'azure' in account_name:
             vendor_name = "azure"
-        elif 'midway3' in account or 'rcc-staff' in account:
+        elif 'midway3' in account_name or 'rcc-staff' in account_name:
             vendor_name = "rcc-midway3"
     else:
         vendor_name = provider
@@ -142,4 +143,4 @@ if __name__ == "__main__":
     instanceDescriptor = InstanceDescriptor(job_name, account_name, node_type, walltime, vendor_name)
 
     # submit job
-    instanceDescriptor.submitJob()
+    instanceDescriptor.submitJob(script_name="run.sh")
