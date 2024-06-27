@@ -20,12 +20,17 @@ import argparse
 #./skyway_batch.py --account=rcc-aws --constraint=t1 --walltime=01:00:00 --script=run.sh
 
 class InstanceDescriptor:
-    def __init__(self, jobname: str, account_name: str, node_type: str, walltime: str, vendor_name: str):
+    def __init__(self, jobname: str, account_name: str, vendor_name: str, node_type=None, walltime=None):
         self.jobname = jobname
         self.account_name = account_name
-        self.node_type = node_type
-        self.walltime = walltime
         self.vendor_name = vendor_name
+
+        self.node_type = ""
+        self.walltime = ""
+        if node_type is not None:
+            self.node_type = node_type
+        if walltime is not None:
+            self.walltime = walltime
 
         self.account = None
         if 'aws' in vendor_name:
@@ -105,24 +110,20 @@ class InstanceDescriptor:
 
 if __name__ == "__main__":
 
-    msg = "Skyway batch mode"
+    node_type = None
+    walltime = None
+    provider = None
+
+    msg = "Skyway cancel/terminate an instance"
     parser = argparse.ArgumentParser(description=msg)
-    parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
     parser.add_argument('--account', dest='account', default="", help="Account name")
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
-    parser.add_argument('--partition', dest='partition', default="", help="Partition")
-    parser.add_argument('--constraint', dest='constraint', default="", help="Node type")
-    parser.add_argument('--walltime', dest='walltime', default="", help="Walltime")
-    parser.add_argument(dest='script', nargs='*', default="", help="Script to run")
-    
-    args = parser.parse_args()
+    parser.add_argument(dest='jobname', nargs='*', default="", help="Job name to cancel")
 
-    job_name = args.jobname
+    args = parser.parse_args()    
     account_name = args.account
-    node_type = args.constraint
-    walltime = args.walltime
     provider = args.provider.lower()
-    script = args.script
+    job_name = args.jobname[0]
     
     if provider == "":
         # try to infer the vendor name from account
@@ -143,7 +144,8 @@ if __name__ == "__main__":
         raise Exception("SKYWAYROOT is not defined.")
 
     # create an instance descriptor (like with the dashboard)
-    instanceDescriptor = InstanceDescriptor(job_name, account_name, node_type, walltime, vendor_name)
+    instanceDescriptor = InstanceDescriptor(job_name, account_name, vendor_name)
 
-    # submit job
-    instanceDescriptor.submitJob(script_name=script)
+    # cancel the job
+    node_names = [job_name]
+    instanceDescriptor.terminateJob(node_names=node_names)
