@@ -44,9 +44,9 @@ class InstanceDescriptor:
         #st.warning("Do you want to create this instance?")
         #if st.button("Yes"):
         
-        print(f"creating node from {self.vendor_name} with account {self.account_name}")
-        nodes = self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=False, walltime=self.walltime)
-        
+        print(f"Creating nodes from {self.vendor_name} with account {self.account_name}")
+        nodes = self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=True, walltime=self.walltime)
+
         return nodes
 
     def connectJob(self, node_names):
@@ -133,8 +133,9 @@ if __name__ == "__main__":
     instanceDescriptor = InstanceDescriptor(job_name, account_name, node_type, walltime, vendor_name)
 
     # submit job
-    instanceDescriptor.submitJob()
+    nodes = instanceDescriptor.submitJob()
 
     # connect to the node with jobname
-    instanceDescriptor.connectJob(node_names=[job_name])
+    if nodes:
+        instanceDescriptor.connectJob(node_names=[job_name])
     

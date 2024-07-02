@@ -219,7 +219,8 @@ class AWS(Cloud):
 
             # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
             #cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
-            cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo shutdown -P {walltime_in_minutes}' "
+            cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
+            cmd += "-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /software; sudo mount -t nfs {io_server}:/software /software' "
 
             print(f"{cmd}")
             os.system(cmd)

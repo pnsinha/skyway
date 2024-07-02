@@ -75,7 +75,7 @@ nodes, output_str = account.list_nodes(verbose=True)
 #nodes = account.get_running_nodes(verbose=True)
 
 # connect to an instance via SSH
-# NOTE: 
+# NOTE: this is for the rcc-aws account
 #   + module unload python/anaconda-2021.05 to avoid OpenSSL conflict
 #   + once on the node, can mount the storage (see  /skyway/post/rcc-aws.sh)
 #       sudo mount -t nfs 172.31.47.245:/skyway /home
@@ -84,6 +84,7 @@ nodes, output_str = account.list_nodes(verbose=True)
 #       sudo mkdir /cloud/rcc-aws
 #       sudo mount -t nfs 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
 # where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
+# For ndtrung-aws, 172.31.47.245 is not visible, whereas 18.224.41.227 gives access denied
 
 #account.connect_node('node1')
 #account.connect_node('midway3-0038')
