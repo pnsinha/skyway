@@ -527,8 +527,8 @@ class AWS(Cloud):
         """
         node_info = []
         for node_type in self.vendor['node-types']:
-            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['price']])
-        print(tabulate(node_info, headers=['Name', 'Instance Type', 'Per-hour cost']))
+            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['cores'], self.vendor['node-types'][node_type]['price']])
+        print(tabulate(node_info, headers=['Name', 'Instance Type', 'CPU Cores', 'Per-hour Cost']))
         print("")
 
     def get_group_members(self):

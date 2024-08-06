@@ -94,7 +94,7 @@ class InstanceDescriptor:
 
 if __name__ == "__main__":
 
-    msg = "Skyway batch mode"
+    msg = "Skyway CLI interactive mode"
     parser = argparse.ArgumentParser(description=msg)
     parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
     parser.add_argument('--account', dest='account', default="", help="Account name")

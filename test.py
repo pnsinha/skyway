@@ -44,15 +44,15 @@ from skyway.service import core
 #service.core.list_all()
 
 # Test cloud nodes
-#account = AWS('rcc-aws')
+account = AWS('rcc-aws')
 #account = GCP('rcc-gcp')
 #account = GCP('ndtrung-gcp')
-account = AZURE('rcc-azure')
+#account = AZURE('rcc-azure')
 
 #account = SLURMCluster('rcc-slurm')
 
 # list all the node types available
-#account.get_node_types()
+account.get_node_types()
 
 # list all the users in this account
 #account.get_group_members()
