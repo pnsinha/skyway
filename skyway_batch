@@ -17,7 +17,7 @@ from io import StringIO
 import argparse
 
 # export SKYWAYROOT=/project/rcc/trung/skyway-github
-#./skyway_batch.py --account=rcc-aws --constraint=t1 --walltime=01:00:00 --script=run.sh
+#./skyway_batch --account=rcc-aws --constraint=t1 --time=01:00:00 --script=run.sh
 
 class InstanceDescriptor:
     def __init__(self, jobname: str, account_name: str, node_type: str, walltime: str, vendor_name: str):
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
     parser.add_argument('--partition', dest='partition', default="", help="Partition")
     parser.add_argument('--constraint', dest='constraint', default="", help="Node type")
-    parser.add_argument('--walltime', dest='walltime', default="", help="Walltime")
+    parser.add_argument('--time', dest='walltime', default="", help="Walltime")
     parser.add_argument(dest='script', nargs='*', default="", help="Script to run")
     
     args = parser.parse_args()

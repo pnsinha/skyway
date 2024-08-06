@@ -18,7 +18,7 @@ from io import StringIO
 import argparse
 
 # export SKYWAYROOT=/project/rcc/trung/skyway-github
-#./skyway_interactive.py --account=rcc-aws --constraint=t1 --walltime=01:00:00
+#./skyway_list --account=rcc-aws
 
 class InstanceDescriptor:
     def __init__(self, jobname: str, account_name: str, node_type: str, walltime: str, vendor_name: str):
