@@ -138,8 +138,21 @@ class GCP(Cloud):
         """
         node_info = []
         for node_type in self.vendor['node-types']:
-            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['cores'], self.vendor['node-types'][node_type]['price']])
-        print(tabulate(node_info, headers=['Name', 'Instance Type', 'CPU Cores', 'Per-hour Cost']))
+            if 'gpu' in self.vendor['node-types'][node_type]:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              self.vendor['node-types'][node_type]['gpu'],
+                              self.vendor['node-types'][node_type]['gpu-type'],
+                              self.vendor['node-types'][node_type]['price']])
+            else:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              "0",
+                              "--",
+                              self.vendor['node-types'][node_type]['price']])
+        print(tabulate(node_info, headers=['Name', 'Instance Type', 'CPU Cores', 'Memory (GB)', 'GPU', 'GPU Type', 'Per-hour Cost ($)']))
         print("")
 
     def get_group_members(self):
