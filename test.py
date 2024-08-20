@@ -20,6 +20,7 @@ from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
 from skyway.cloud.azure import *
 from skyway.cloud.slurm import *
+from skyway.cloud.oci import *
 
 from datetime import datetime, timezone
 
@@ -44,10 +45,11 @@ from skyway.service import core
 #service.core.list_all()
 
 # Test cloud nodes
-account = AWS('rcc-aws')
+#account = AWS('rcc-aws')
 #account = GCP('rcc-gcp')
 #account = GCP('ndtrung-gcp')
 #account = AZURE('rcc-azure')
+account = OCI('ndtrung-oci')
 
 #account = SLURMCluster('rcc-slurm')
 

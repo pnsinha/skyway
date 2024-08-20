@@ -42,6 +42,22 @@ class OCI(Cloud):
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
 
+        # specific to OCI account config
+        api_key_pem_full_path = account_path + self.account['key_name']
+        if ".pem" not in api_key_pem_full_path:
+            api_key_pem_full_path += ".pem"
+        self.config = {
+            "user": self.account['user'],
+            "key_file": api_key_pem_full_path,
+            "fingerprint": self.account['fingerprint'],
+            "tenancy": self.account['tenancy'],
+            "region": self.account['region']
+        }
+
+        self.identity_client = oci.identity.IdentityClient(self.config)
+        self.compute_client = oci.core.ComputeClient(self.config)
+        self.compute_client_composite_operations = oci.core.ComputeClientCompositeOperations(self.compute_client)
+
         self.usage_history = f"{account_path}usage-{account}.pkl"
 
         # load cloud.yaml under $SKYWAYROOT/etc/
@@ -53,18 +69,6 @@ class OCI(Cloud):
         self.vendor = vendor_cfg['oci']
         self.account_name = account
         
-        # specific to OCI
-        self.config = {
-            "user": vendor_cfg['user'],
-            "key_file": vendor_cfg['key_file'],
-            "fingerprint": vendor_cfg['fingerprint'],
-            "tenancy": vendor_cfg['tenancy'],
-            "region": vendor_cfg['region']
-        }
-
-        self.identity_client = oci.identity.IdentityClient(self.config)
-        self.compute_client = oci.core.ComputeClient(self.config)
-        self.compute_client_composite_operations = oci.core.ComputeClientCompositeOperations(self.compute_client)
 
     def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes
@@ -76,7 +80,7 @@ class OCI(Cloud):
         
         instances = self.get_instances()
         nodes = []
-        
+
         for instance in instances:
             node_name = self.get_instance_name(instance)
             if show_protected_nodes == False and node_name in self.account['protected_nodes']:
@@ -564,7 +568,7 @@ class OCI(Cloud):
         NOTE: if using libcloud then use self.driver.list_nodes()
         """
         instance_list = oci.pagination.list_call_get_all_results(
-            self.compute_client.list_instances, self.compartment_id
+            self.compute_client.list_instances, self.account['compartment_id']
         ).data
 
         # Filter the instances to get only the running ones
