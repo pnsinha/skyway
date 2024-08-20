@@ -145,7 +145,8 @@ class SLURMCluster(Cloud):
 
     def get_budget_api(self):
         '''
-        get the budget from the cloud account API
+        get the budget from the service provide API
+           accounts balance
         '''
         pass
 

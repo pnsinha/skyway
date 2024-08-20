@@ -4,6 +4,7 @@
 # Maintainer: Yuxing Peng, Trung Nguyen
 
 import os
+from tabulate import tabulate
 from .. import utils
 
 # Provide the API for child classes to override
@@ -49,7 +50,11 @@ class Cloud():
         '''
         get all the user names in this account (listed in the .yaml file)
         '''
-        pass
+        user_info = []
+        for user in self.users:
+            user_info.append([user, self.users[user]['budget']])
+        print(tabulate(user_info, headers=['User', 'Budget']))
+        print("")
 
     # billing operations
 
