@@ -8,6 +8,7 @@ Documentation for AWS Class
 """
 import os
 import io
+import subprocess
 from tabulate import tabulate
 from .core import Cloud
 from .. import utils
@@ -127,7 +128,7 @@ class AWS(Cloud):
             print("", file=output_str)
         return nodes, output_str
 
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
@@ -223,8 +224,11 @@ class AWS(Cloud):
             #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /software; sudo mount -t nfs {io_server}:/skyway /home; sudo mount -t nfs {io_server}:/software /software' "
             cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
 
-            print(f"{cmd}")
-            os.system(cmd)
+            #print(f"{cmd}")
+            p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+            #os.system(cmd)
+            print("To connect to the VM:")
+            print(f"  ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com ")
 
         return nodes
 

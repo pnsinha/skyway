@@ -8,6 +8,7 @@ Documentation for OCI Class
 """
 import os
 import io
+import subprocess
 from tabulate import tabulate
 from .core import Cloud
 from .. import utils
@@ -110,7 +111,7 @@ class OCI(Cloud):
             print("", file=output_str)
         return nodes, output_str
 
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.

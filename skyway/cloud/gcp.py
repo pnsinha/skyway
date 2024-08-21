@@ -10,6 +10,7 @@ Documentation for GCP Class
 import os
 import io
 import logging
+import subprocess
 from tabulate import tabulate
 from datetime import datetime, timezone
 
@@ -202,7 +203,7 @@ class GCP(Cloud):
             print("", file=output_str)
         return nodes, output_str
     
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
@@ -314,7 +315,10 @@ class GCP(Cloud):
             print("Connecting to host: " + host)
 
             cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
-            os.system(cmd)           
+            p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+            #os.system(cmd)
+            print("To connect to the VM:")
+            print(f"  ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} ")
         
         return nodes
 

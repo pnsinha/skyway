@@ -8,6 +8,7 @@ Documentation for Azure Class
 import os
 import io
 import logging
+import subprocess
 from tabulate import tabulate
 from datetime import datetime, timezone
 
@@ -124,7 +125,7 @@ class AZURE(Cloud):
             print("", file=output_str)
         return nodes, output_str            
 
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
         usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
