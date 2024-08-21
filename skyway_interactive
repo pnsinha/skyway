@@ -45,7 +45,17 @@ class InstanceDescriptor:
         #if st.button("Yes"):
         
         print(f"Creating nodes from {self.vendor_name} with account {self.account_name}")
-        nodes = self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=True, walltime=self.walltime)
+        nodes = self.account.create_nodes(self.node_type,
+                                          [self.jobname],
+                                           need_confirmation=True,
+                                           walltime=self.walltime,
+                                           interactive=True)
+
+        # connect to the node with jobname: used to work as expected
+        #    21Aug2024: create_nodes with interactive==False would skip over the connectJob step below, no idea why
+        #
+        #if nodes:
+        #    instanceDescriptor.connectJob(node_names=[job_name])
 
         return nodes
 
@@ -135,7 +145,4 @@ if __name__ == "__main__":
     # submit job
     nodes = instanceDescriptor.submitJob()
 
-    # connect to the node with jobname
-    if nodes:
-        instanceDescriptor.connectJob(node_names=[job_name])
     

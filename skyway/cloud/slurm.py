@@ -247,9 +247,10 @@ class SLURMCluster(Cloud):
         return nodes, output_str
 
 
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         '''
         create several nodes (aka instances) given a list of node names using salloc
+        for SLURM it is a wrapper of salloc
         '''
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
@@ -279,18 +280,23 @@ class SLURMCluster(Cloud):
             raise Exception(f'List of node names is empty.')
 
         job_name = node_names[0]
-        cmd = f"salloc --account={self.account['account_id']}"
+        cmd = f"salloc"
+        if interactive == True:
+            cmd = f"sinteractive"
+        cmd += f" --account={self.account['account_id']}"
         cmd += f" -J {job_name}"
         cmd += f" --nodes={count}"
         cmd += f" --ntasks-per-node={ntasks_per_node}"
         cmd += f" --mem={memgb}GB"
         cmd += f" --time={walltime_str}"
         cmd += f" --comment={node_type}"
+        cmd += " --wait-all-nodes=1"
         if node_type == 'g1':
             cmd += f" --gres=gpu:1 --partition=gpu"
         if node_type == 'g2':
             cmd += f" --gres=gpu:2 --partition=gpu"
         print(f"{cmd}")
+        #p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
         os.system(cmd)
 
     def connect_node(self, node_name):
@@ -299,9 +305,8 @@ class SLURMCluster(Cloud):
         '''
         print(f"Node name: {node_name}")
         
-        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
-        #print(f"{cmd}")
+        cmd = f"gnome-terminal --title='Connecting to the node' -- bash -c 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
+        print(f"{cmd}")
         os.system(cmd)
 
     def destroy_nodes(self, IDs = [], need_confirmation=True):

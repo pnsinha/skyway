@@ -17,7 +17,7 @@ from io import StringIO
 import argparse
 
 # export SKYWAYROOT=/project/rcc/trung/skyway-github
-#./skyway_batch --account=rcc-aws --constraint=t1 --time=01:00:00 --script=run.sh
+#./skyway_batch job_script.sh
 
 class InstanceDescriptor:
     def __init__(self, jobname: str, account_name: str, node_type: str, walltime: str, vendor_name: str):
@@ -103,27 +103,66 @@ class InstanceDescriptor:
         nodes, list_of_nodes = self.account.list_nodes(verbose=False) 
         return nodes
 
+'''
+   parse the job script to get the account information, node type (constraint) and walltime
+'''
+def parse_script(filename):
+    jobname = ""
+    account = ""
+    constraint = ""
+    walltime = ""
+    
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            # extract only lines with #SBATCH, remove \n characters
+            # remove all the spaces
+            # split at '='
+            if "#SBATCH" in line:
+                # remove #SBATCH
+                line = line.replace('#SBATCH ','').strip('\n')
+                line = line.replace(' ','')
+                args = line.split('=')
+                if len(args) == 2:
+                    if args[0] == "-job-name":
+                        jobname = args[1]
+                    if args[0] == "--account":
+                        account = args[1]
+                    if args[0] == "--constraint":
+                        constraint = args[1]
+                    if args[0] == "--time":
+                        walltime = args[1]                        
+            else:
+                continue
+
+    return { 'jobname': jobname,
+             'account': account,
+             'constraint': constraint,
+             'walltime': walltime,
+            }
+
 if __name__ == "__main__":
 
     msg = "Skyway CLI batch mode"
-    parser = argparse.ArgumentParser(description=msg)
-    parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
-    parser.add_argument('--account', dest='account', default="", help="Account name")
-    parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
-    parser.add_argument('--partition', dest='partition', default="", help="Partition")
-    parser.add_argument('--constraint', dest='constraint', default="", help="Node type")
-    parser.add_argument('--time', dest='walltime', default="", help="Walltime")
-    parser.add_argument(dest='script', nargs='*', default="", help="Script to run")
-    
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description=msg)
+    #parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
+    #parser.add_argument('--account', dest='account', default="", help="Account name")
+    #parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
+    #parser.add_argument('--partition', dest='partition', default="", help="Partition")
+    #parser.add_argument('--constraint', dest='constraint', default="", help="Node type")
+    #parser.add_argument('--time', dest='walltime', default="", help="Walltime")
+    #parser.add_argument(dest='script', nargs='*', default="", help="Script to run")
+    #args = parser.parse_args()
+    print(msg)
+    script = sys.argv[1]
+    args = parse_script(script)
 
-    job_name = args.jobname
-    account_name = args.account
-    node_type = args.constraint
-    walltime = args.walltime
-    provider = args.provider.lower()
-    script = args.script
-    
+    job_name = args['jobname']
+    account_name = args['account']
+    node_type = args['constraint']
+    walltime = args['walltime']
+    provider = ""
+
     if provider == "":
         # try to infer the vendor name from account
         if 'aws' in account_name:
@@ -134,6 +173,9 @@ if __name__ == "__main__":
             vendor_name = "azure"
         elif 'midway3' in account_name or 'rcc-staff' in account_name:
             vendor_name = "rcc-midway3"
+        else:
+            print(f"account name {account_name} is not valid")
+            quit
     else:
         vendor_name = provider
 
