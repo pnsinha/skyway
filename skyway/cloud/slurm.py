@@ -60,7 +60,7 @@ class SLURMCluster(Cloud):
 
         self.vendor = vendor_cfg['slurm']
         self.account_name = account
-
+        self.onpremises = True
        
     # account info
 

@@ -61,6 +61,7 @@ class AZURE(Cloud):
       
         self.vendor = vendor_cfg['azure']
         self.account_name = account
+        self.onpremises = False
 
         self.credentials = ClientSecretCredential(client_id=self.account['client_id'],
                                                   client_secret=self.account['client_secret'],

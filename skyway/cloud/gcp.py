@@ -58,6 +58,7 @@ class GCP(Cloud):
       
         self.vendor = vendor_cfg['gcp']
         self.account_name = account
+        self.onpremises = False
 
         ComputeEngine = get_driver(Provider.GCE)
         try:

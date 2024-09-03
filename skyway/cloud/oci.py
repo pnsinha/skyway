@@ -69,7 +69,7 @@ class OCI(Cloud):
 
         self.vendor = vendor_cfg['oci']
         self.account_name = account
-        
+        self.onpremises = False
 
     def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes

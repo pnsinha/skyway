@@ -58,6 +58,7 @@ class AWS(Cloud):
 
         self.vendor = vendor_cfg['aws']
         self.account_name = account
+        self.onpremises = False
 
         # using_trusted_agent = False means that no use of master account key and secret as defined in cloud.yaml
         self.using_trusted_agent = False

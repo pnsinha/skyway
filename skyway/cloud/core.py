@@ -28,9 +28,11 @@ class Cloud():
 
     def __init__(self, vendor_cfg, kwargs):
         self.vendor = vendor_cfg
-        
+        self.onpremises = False
+
         for k, v in kwargs.items():
             setattr(self, k.replace('-','_'), v)
+            
 
     # account info
 
