@@ -43,8 +43,10 @@ class OCI(Cloud):
         for k, v in account_cfg.items():
             setattr(self, k.replace('-','_'), v)
 
+        self.account_path = account_path
+
         # specific to OCI account config
-        api_key_pem_full_path = account_path + self.account['key_name']
+        api_key_pem_full_path = account_path + self.account['api_key_name']
         if ".pem" not in api_key_pem_full_path:
             api_key_pem_full_path += ".pem"
         self.config = {
@@ -64,7 +66,7 @@ class OCI(Cloud):
         # load cloud.yaml under $SKYWAYROOT/etc/
         cloud_path = os.environ['SKYWAYROOT'] + '/etc/'
         vendor_cfg = utils.load_config('cloud', cloud_path)
-        if 'aws' not in vendor_cfg:
+        if 'oci' not in vendor_cfg:
             raise Exception(f'Cloud vendor oci is undefined.')
 
         self.vendor = vendor_cfg['oci']
@@ -149,11 +151,19 @@ class OCI(Cloud):
             hostname_label='my-instance'
         )
 
-        
-        ssh_pub_key = open('id_rsa_oci.pub').read()
+        public_key_file = self.account_path + "/" + self.account['public_key']
+        ssh_pub_key = open(public_key_file).read()
+
+       
+        list_availability_domains_response = oci.pagination.list_call_get_all_results(
+            self.identity_client.list_availability_domains,
+            self.account['compartment_id']
+        )
+        availability_domain = list_availability_domains_response.data[0]
+
         instance_details = oci.core.models.LaunchInstanceDetails(
-            compartment_id=self.compartment_id,
-            availability_domain=self.availability_domain.name,
+            compartment_id=self.account['compartment_id'],
+            availability_domain=availability_domain.name,
             shape=self.vendor['node-types'][node_type]['name'],
             shape_config=oci.core.models.LaunchInstanceShapeConfigDetails(ocpus=1, memory_in_gbs=1),
             display_name='my_instance',
@@ -191,7 +201,7 @@ class OCI(Cloud):
         walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
         # record node_type, launch time
-        instance_type = str(instance.instance_type)
+        instance_type = str(self.vendor['node-types'][node_type]['name'])
         launch_time = instance.launch_time.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         nodes[node_names[0]] = [instance_type, launch_time, str(instance.public_ip_address)]
 
@@ -200,8 +210,10 @@ class OCI(Cloud):
         #   + executing some custom scripts
         #   + shut down the instance after the walltime
         #io_server = "172.31.47.245"
-        ip = instance.public_ip_address
+        #ip = self.get_host_ip(instance)
         #ip_converted = ip.replace('.','-')
+
+        # need a while loop waiting for the instace to be RUNNING before able to ssh to it
 
         # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
         #cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{ip}"
@@ -212,25 +224,19 @@ class OCI(Cloud):
         
         return nodes
 
-    def connect_node(self, instance_ID):
+    def connect_node(self, instance):
         """
         Connect to an instance using account's pem file
         [account_name].pem file should be under $SKYWAYROOT/etc/accounts
         It is important to create the node using the account's key-name.
         """
-        print(f"Instance ID: {instance_ID}")
-        ip = self.get_host_ip(instance_ID)
-        print(f"Connect to instance public IP address: {ip}")
-
-        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        pem_file_full_path = path + self.account['key_name'] + '.pem'
-        username = self.vendor['username']
-        region = self.account['region']
-        ip_converted = ip.replace('.','-')
-
-        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{ip}' "
+        public_ip = self.get_host_ip(instance)
+        account_pem_file = self.account['private_key']
+        username = "opc"
         
+        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd += f" 'ssh -i {account_pem_file} -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
+
         os.system(cmd)
 
     def execute(self, instance_ID: str, **kwargs):
@@ -475,23 +481,31 @@ class OCI(Cloud):
 
         return nodes
 
-    def get_host_ip(self, instance_ID):
+    def get_host_ip(self, instance):
         """Member function: get the IP address of an instance (node) 
          - ID: instance identifier
         """
-        
-        if instance_ID[0:2] == 'i-':
-            instances = self.get_instances(filters = [{
-                "Name" : "instance-id",
-                "Values" : [instance_ID]
-            }])
+        public_ip = ""
+        vn_client = oci.core.VirtualNetworkClient(self.config)
+
+        vnic_attachments = self.compute_client.list_vnic_attachments(
+            compartment_id=instance.compartment_id,
+            instance_id=instance.id
+        ).data
+
+        if vnic_attachments:
+            vnic_id = vnic_attachments[0].vnic_id
+
+            # Get the VNIC details
+            vnic = vn_client.get_vnic(vnic_id).data
+            
+            # Retrieve the public IP address
+            public_ip = vnic.public_ip
+            print(f"Public IP Address: {public_ip}")
         else:
-            instances = self.get_instances(filters = [{
-                "Name" : "tag:Name",
-                "Values" : [instance_ID]
-            }])
+            print("No VNIC attachments found for this instance.")
         
-        return list(instances)[0].public_ip_address
+        return public_ip
 
 
     def get_all_images(self, owners=['self']):
