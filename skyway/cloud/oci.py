@@ -81,6 +81,7 @@ class OCI(Cloud):
                 (1) instance name (2) state (3) type (4) identifier
         """
         
+        
         instances = self.get_instances()
         nodes = []
 
@@ -89,17 +90,19 @@ class OCI(Cloud):
             if show_protected_nodes == False and node_name in self.account['protected_nodes']:
                 continue
 
-            if instance.state['Name'] != 'terminated':
-                running_time = datetime.now(timezone.utc) - instance.launch_time
+            if instance.lifecycle_state != 'Terminated':
+                running_time = datetime.now(timezone.utc) - instance.time_created
                 
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.total_seconds()/3600.0 * instance_unit_cost
 
-                nodes.append([self.get_instance_name(instance),
-                              instance.state['Name'], 
-                              instance.instance_type, 
-                              instance.instance_id,
-                              instance.public_ip_address,
+                public_ip_address = self.get_host_ip(instance)
+                instance_type = instance.shape
+                nodes.append([instance.display_name,
+                              instance.lifecycle_state,
+                              instance.id,
+                              instance_type,
+                              public_ip_address,
                               running_time,
                               running_cost])
         
@@ -173,6 +176,7 @@ class OCI(Cloud):
                 'ssh_authorized_keys': ssh_pub_key,
                 'Name': node_name,
                 'User': user_name,
+                'node_type': self.vendor['node-types'][node_type]['name'],
             }
         )
 
@@ -187,9 +191,9 @@ class OCI(Cloud):
         # .pem file is the private key of the local machine that has a correponding public key listed
         # as in ~/.ssh/authorized_keys on the node
         path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        pem_file_full_path = path + self.account['key_name'] + '.pem'
+        pem_file_full_path = path + self.account['private_key']
         username = self.vendor['username']
-        region = self.account['region']
+        public_ip = self.get_host_ip(instance)
 
         if walltime is None:
             walltime_str = "00:05:00"
@@ -202,25 +206,24 @@ class OCI(Cloud):
 
         # record node_type, launch time
         instance_type = str(self.vendor['node-types'][node_type]['name'])
-        launch_time = instance.launch_time.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-        nodes[node_names[0]] = [instance_type, launch_time, str(instance.public_ip_address)]
+        launch_time = instance.time_created.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+        nodes[node_names[0]] = [instance_type, launch_time, str(public_ip)]
 
         # perform post boot tasks on each node
         #   + mounting storage (/home, /software) from io-server 172.31.47.245 (private IP of the rcc-io node) (rcc-aws, not using a trusted agent)
         #   + executing some custom scripts
         #   + shut down the instance after the walltime
         #io_server = "172.31.47.245"
-        #ip = self.get_host_ip(instance)
+        
         #ip_converted = ip.replace('.','-')
 
-        # need a while loop waiting for the instace to be RUNNING before able to ssh to it
-
         # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
-        #cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{ip}"
-        #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /software; sudo mount -t nfs {io_server}:/skyway /home; sudo mount -t nfs {io_server}:/software /software' "
+        print(f"Connect to the instance with:")
+        cmd = f"  ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
+        print(f"{cmd}")
+        cmd += f"-t 'sudo shutdown -P {walltime_in_minutes} "
         #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
-        #print(f"{cmd}")
-        #os.system(cmd)
+        os.system(cmd)
         
         return nodes
 
@@ -513,8 +516,6 @@ class OCI(Cloud):
             list_images_response = oci.pagination.list_call_get_all_results(
                 self.compute.list_images,
                 self.compartment_id,
-                #operating_system="Oracle Linux",
-                #shape=shape.shape
             )
             images = list_images_response.data
 
@@ -533,13 +534,7 @@ class OCI(Cloud):
          - instance:
         """
         
-        if instance.tags is None: return ''
-
-        for tag in instance.tags:
-            if tag['Key'] == 'Name':
-                return tag['Value']
-
-        return ''
+        return instance.display_name
 
     def get_instance_ID(self, instance_name: str):
         """Member function: get_instance_name
@@ -547,10 +542,7 @@ class OCI(Cloud):
         Note: AWS doesn't use unique name for instances, instead, name is an
         attribute stored in the tags.        
         """
-        running_instances = self.get_instances(filters = [{
-                    "Name" : "instance-state-name",
-                    "Values" : ["running"]
-        }])
+        running_instances = self.get_instances()
                 
         for instance in running_instances:
             if instance.tags is None: continue
@@ -558,7 +550,7 @@ class OCI(Cloud):
             for tag in instance.tags:
                 if tag['Key'] == 'Name':
                     if tag['Value'] == instance_name:
-                        return instance.instance_id
+                        return instance.id
         return ''
 
     def get_instance_user_name(self, instance):
@@ -595,7 +587,7 @@ class OCI(Cloud):
         Get the per-hour price of an instance depending on its instance_type (e.g. t2.micro)
         """
         for node_type in self.vendor['node-types']:
-            if self.vendor['node-types'][node_type]['name'] == instance.instance_type:
+            if self.vendor['node-types'][node_type]['name'] == instance.shape:
                 unit_price = self.vendor['node-types'][node_type]['price']
                 return unit_price
         return -1.0
@@ -625,7 +617,7 @@ class OCI(Cloud):
                 total_cost = total_cost + running_cost
                 nodes.append([self.get_instance_name(instance),
                                     instance.state['Name'], 
-                                    instance.instance_type, 
+                                    instance.shape, 
                                     instance.instance_id,
                                     running_time,
                                     running_cost])
