@@ -11,6 +11,7 @@ from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
 from skyway.cloud.azure import *
 from skyway.cloud.slurm import *
+from skyway.cloud.oci import *
 
 from datetime import datetime, timezone
 from io import StringIO
@@ -35,6 +36,8 @@ class InstanceDescriptor:
             self.account = GCP(account_name)
         elif 'azure' in vendor_name:
             self.account = AZURE(account_name)
+        elif 'oci' in vendor_name:
+            self.account = OCI(account_name)            
         elif 'midway3' in vendor_name:
             self.account = SLURMCluster(account_name)
 
@@ -82,6 +85,8 @@ if __name__ == "__main__":
             vendor_name = "gcp"
         elif 'azure' in account_name:
             vendor_name = "azure"
+        elif 'oci' in account_name:
+            vendor_name = "oci"
         elif 'midway3' in account_name or 'rcc-staff' in account_name:
             vendor_name = "rcc-midway3"
     else:

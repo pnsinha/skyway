@@ -221,7 +221,7 @@ class OCI(Cloud):
         print(f"Connect to the instance with:")
         cmd = f"  ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
         print(f"{cmd}")
-        cmd += f"-t 'sudo shutdown -P {walltime_in_minutes} "
+        cmd += f" -t 'sudo shutdown -P {walltime_in_minutes}' "
         #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
         os.system(cmd)
         
@@ -303,7 +303,7 @@ class OCI(Cloud):
         # List all instances in the compartment
         instance_list = oci.pagination.list_call_get_all_results(
             self.compute_client.list_instances,
-            self.compartment_id
+            self.account['compartment_id']
         ).data
 
         # Filter the instances to get only the running ones
