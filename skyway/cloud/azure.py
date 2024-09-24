@@ -142,6 +142,9 @@ class AZURE(Cloud):
             if response == 'n':
                 return
 
+        count = len(node_names)
+        print(f"Allocating {count} instance ...")
+
         nodes = {}
         node_cfg = self.vendor['node-types'][node_type]
         size_name = node_cfg['name']           # e.g. "Standard_DS1_v2"
@@ -244,6 +247,8 @@ class AZURE(Cloud):
             node_type = node.extra.get('properties')['hardwareProfile']['vmSize']
             creation_time_str = node.extra.get('properties')['timeCreated']
             nodes[node_name] = [str(node.id), node_type, creation_time_str]
+
+            print(f"Allocated instance: {node_name}")
 
             # ssh to the node and execute a shutdown command scheduled for walltime
             '''

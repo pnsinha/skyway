@@ -233,7 +233,8 @@ class GCP(Cloud):
         count = len(node_names)
         if count <= 0:
             raise Exception(f'List of node names is empty.')
-        
+        print(f"Allocating {count} instance ...")
+
         location_name = self.vendor['location'] + '-c'
         locations = self.driver.list_locations()
         location = next((loc for loc in locations if loc.name == location_name), None)
@@ -313,12 +314,12 @@ class GCP(Cloud):
             # ssh to the node and execute a shutdown command scheduled for walltime
             host = node.public_ips[0]
             user_name = os.environ['USER']
-            print("Connecting to host: " + host)
+            #print("Connecting to host: " + host)
 
             cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
             p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
             #os.system(cmd)
-            print("To connect to the VM:")
+            print("To connect to the instance, run:")
             print(f"  ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} ")
         
         return nodes

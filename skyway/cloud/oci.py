@@ -100,8 +100,8 @@ class OCI(Cloud):
                 instance_type = instance.shape
                 nodes.append([instance.display_name,
                               instance.lifecycle_state,
-                              instance.id,
                               instance_type,
+                              instance.id,
                               public_ip_address,
                               running_time,
                               running_cost])
@@ -143,6 +143,7 @@ class OCI(Cloud):
 
         count = len(node_names)      
         node_name = node_names[0]
+        print(f"Allocating {count} instance ...")
 
         # ImageID and KeyName provided by the account then user can connect to the running node
         #   if ImageID is from the vendor, KeyName from the account, ssh connection is denied
@@ -204,6 +205,10 @@ class OCI(Cloud):
         pt = datetime.strptime(walltime_str, "%H:%M:%S")
         walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
+        # copy pem file to pwd, change the permission to 400
+        cmd = f"cp {pem_file_full_path} .my_ssh_key.pem; chmod 400 .my_ssh_key.pem"
+        os.system(cmd)
+
         # record node_type, launch time
         instance_type = str(self.vendor['node-types'][node_type]['name'])
         launch_time = instance.time_created.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
@@ -217,14 +222,16 @@ class OCI(Cloud):
         
         #ip_converted = ip.replace('.','-')
 
+        print(f"Created instance: {instance.display_name}")
+
         # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
-        print(f"Connect to the instance with:")
-        cmd = f"  ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
+        print(f"To connect to the instance, run:")
+        cmd = f"  ssh -i .my_ssh_key.pem -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
         print(f"{cmd}")
-        cmd += f" -t 'sudo shutdown -P {walltime_in_minutes}' "
+        cmd += f" -t 'sudo shutdown -P {walltime_in_minutes}'; bash "
         #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
         os.system(cmd)
-        
+
         return nodes
 
     def connect_node(self, instance):
@@ -333,38 +340,7 @@ class OCI(Cloud):
         return True
       
     def get_cost_and_usage(self, start_date, end_date, verbose=True):
-        # NOTES:
-        #   1) the current IAM role of the master account is not allowed to get a cost explorer client
-        #   need to use direct access key and secret from the account's user in the admin group
-        #   2) for resource-level cost info, user needs to opt-in for daily/hourly monitoring which costs $$
-        client = boto3.client('ce',
-                              aws_access_key_id = self.account['access_key_id'],
-                              aws_secret_access_key = self.account['secret_access_key'],
-                              region_name = self.account['region'])
-    
-        # Query the cost and usage data
-        response = client.get_cost_and_usage_with_resources(
-            TimePeriod={
-                'Start': start_date,
-                'End': end_date
-            },
-            Granularity='DAILY',
-            Metrics=['BlendedCost', 'UsageQuantity'],
-            Filter={
-                "Dimensions": { "Key": "SERVICE", 'Values': ['Amazon Elastic Compute Cloud - Compute'] }
-            },
-            GroupBy=[
-                {
-                    'Type': 'DIMENSION',
-                    'Key': 'RESOURCE_ID'
-                }
-            ]
-        )
-        
-        # Return the response
-        if verbose == True:
-            print(response['ResultsByTime'])
-        return response
+        pass
 
     def get_cost_and_usage_from_db(self, user_name):
         '''

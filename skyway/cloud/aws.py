@@ -156,6 +156,7 @@ class AWS(Cloud):
 
         count = len(node_names)      
         node_name = node_names[0]
+        print(f"Allocating {count} instance ...")
 
         # ImageID and KeyName provided by the account then user can connect to the running node
         #   if ImageID is from the vendor, KeyName from the account, ssh connections is denied
@@ -203,6 +204,10 @@ class AWS(Cloud):
         pt = datetime.strptime(walltime_str, "%H:%M:%S")
         walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
+        # copy ssh pem file to pwd, change the permission to 400
+        cmd = f"cp {pem_file_full_path} .my_ssh_key.pem; chmod 400 .my_ssh_key.pem"
+        os.system(cmd)
+
         for inode, instance in enumerate(instances):
             instance.load()
 
@@ -219,17 +224,21 @@ class AWS(Cloud):
             ip = instance.public_ip_address
             ip_converted = ip.replace('.','-')
 
+            print(f"Created instance: {node_names[inode]}")
+
             # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
             #cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
-            cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
+
+            cmd = f"ssh -i .my_ssh_key.pem -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
+            #cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
             #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /software; sudo mount -t nfs {io_server}:/skyway /home; sudo mount -t nfs {io_server}:/software /software' "
             cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
 
             #print(f"{cmd}")
             p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
             #os.system(cmd)
-            print("To connect to the VM:")
-            print(f"  ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com ")
+            print("To connect to the instance, run:")
+            print(f"  ssh -i .my_ssh_key.pem -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com ")
 
         return nodes
 
