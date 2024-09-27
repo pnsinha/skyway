@@ -57,8 +57,8 @@ class InstanceDescriptor:
         # connect to the node with jobname: used to work as expected
         #    21Aug2024: create_nodes with interactive==False would skip over the connectJob step below, no idea why
         #
-        #if nodes:
-        #    instanceDescriptor.connectJob(node_names=[job_name])
+        if nodes:
+            instanceDescriptor.connectJob(node_names=[job_name])
 
         return nodes
 

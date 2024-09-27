@@ -6,14 +6,16 @@
 """@package docstring
 Documentation for AWS Class
 """
+
+from datetime import datetime, timezone
 import os
 import io
 import subprocess
 from tabulate import tabulate
+
 from .core import Cloud
 from .. import utils
 
-from datetime import datetime, timezone
 import pandas as pd
 
 # AWS python SDK
@@ -88,6 +90,13 @@ class AWS(Cloud):
         if self.using_libcloud:
             EC2 = get_driver(Provider.EC2)
             self.driver = EC2(self.account['access_key_id'], self.account['secret_access_key'], self.account['region'])
+        
+        # copy ssh pem file to pwd, change the permission to 400
+        pem_file_full_path = account_path + self.account['key_name'] + '.pem'
+        self.my_ssh_private_key =  f".my_aws_ssh_key.pem"
+        cmd = f"cp {pem_file_full_path} {self.my_ssh_private_key}; chmod 400 {self.my_ssh_private_key}"
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+
        
     def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes
@@ -204,10 +213,6 @@ class AWS(Cloud):
         pt = datetime.strptime(walltime_str, "%H:%M:%S")
         walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
-        # copy ssh pem file to pwd, change the permission to 400
-        cmd = f"cp {pem_file_full_path} .my_ssh_key.pem; chmod 400 .my_ssh_key.pem"
-        os.system(cmd)
-
         for inode, instance in enumerate(instances):
             instance.load()
 
@@ -229,16 +234,14 @@ class AWS(Cloud):
             # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
             #cmd = f"ssh -i {pem_file_full_path} {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'sudo mount -t nfs 172.31.47.245:/skyway /home' "
 
-            cmd = f"ssh -i .my_ssh_key.pem -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
+            print("To connect to the instance, run:")
+            cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
+            print(f"  {cmd}")
             #cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
             #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /software; sudo mount -t nfs {io_server}:/skyway /home; sudo mount -t nfs {io_server}:/software /software' "
             cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
-
-            #print(f"{cmd}")
             p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
-            #os.system(cmd)
-            print("To connect to the instance, run:")
-            print(f"  ssh -i .my_ssh_key.pem -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com ")
+           
 
         return nodes
 
@@ -250,17 +253,14 @@ class AWS(Cloud):
         """
         print(f"Instance ID: {instance_ID}")
         ip = self.get_host_ip(instance_ID)
-        print(f"Connect to instance public IP address: {ip}")
+        print(f"Connecting to instance public IP address: {ip}")
 
-        path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        pem_file_full_path = path + self.account['key_name'] + '.pem'
         username = self.vendor['username']
         region = self.account['region']
         ip_converted = ip.replace('.','-')
 
         cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' "
-        #print(f"{cmd}")
+        cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' "
         os.system(cmd)
 
     def execute(self, instance_ID: str, **kwargs):
@@ -283,9 +283,8 @@ class AWS(Cloud):
             command += value + " "
 
         cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' -t '{command}' "
-
-        os.system(cmd)
+        cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' -t '{command}' "
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
 
     def execute_script(self, instance_ID: str, script_name: str):
@@ -301,8 +300,8 @@ class AWS(Cloud):
         ip_converted = ip.replace('.','-')
 
         script_cmd = utils.script2cmd(script_name)
-        cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'eval {script_cmd}' "
-        os.system(cmd)
+        cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com -t 'eval {script_cmd}' "
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
 
     def destroy_nodes(self, node_names=None, IDs=None, need_confirmation=True):
@@ -413,7 +412,6 @@ class AWS(Cloud):
 
                 instance.terminate()
                 instances.append(instance)
-
 
         for instance in instances:
             instance.wait_until_terminated()

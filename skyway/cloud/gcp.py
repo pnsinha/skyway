@@ -318,7 +318,6 @@ class GCP(Cloud):
 
             cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
             p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
-            #os.system(cmd)
             print("To connect to the instance, run:")
             print(f"  ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} ")
         

@@ -73,6 +73,12 @@ class OCI(Cloud):
         self.account_name = account
         self.onpremises = False
 
+        # copy ssh pem file to pwd, change the permission to 400
+        pem_file_full_path = account_path + self.account['private_key']
+        self.my_ssh_private_key =  f".my_oci_ssh_key.pem"
+        cmd = f"cp {pem_file_full_path} {self.my_ssh_private_key}; chmod 400 {self.my_ssh_private_key}"
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+
     def list_nodes(self, show_protected_nodes=False, verbose=False):
         """Member function: list_nodes
         Get a list of all existed instances
@@ -205,10 +211,6 @@ class OCI(Cloud):
         pt = datetime.strptime(walltime_str, "%H:%M:%S")
         walltime_in_minutes = int(pt.hour * 60 + pt.minute + pt.second/60)
 
-        # copy pem file to pwd, change the permission to 400
-        cmd = f"cp {pem_file_full_path} .my_ssh_key.pem; chmod 400 .my_ssh_key.pem"
-        os.system(cmd)
-
         # record node_type, launch time
         instance_type = str(self.vendor['node-types'][node_type]['name'])
         launch_time = instance.time_created.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
@@ -226,11 +228,11 @@ class OCI(Cloud):
 
         # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
         print(f"To connect to the instance, run:")
-        cmd = f"  ssh -i .my_ssh_key.pem -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
+        cmd = f"  ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
         print(f"{cmd}")
         cmd += f" -t 'sudo shutdown -P {walltime_in_minutes}'; bash "
         #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "
-        os.system(cmd)
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
         return nodes
 
@@ -245,9 +247,9 @@ class OCI(Cloud):
         username = "opc"
         
         cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh -i {account_pem_file} -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
-
-        os.system(cmd)
+        cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+        #os.system(cmd)
 
     def execute(self, instance_ID: str, **kwargs):
         '''
@@ -259,18 +261,14 @@ class OCI(Cloud):
         ip = self.get_host_ip(instance_ID)
 
         path = os.environ['SKYWAYROOT'] + '/etc/accounts/'
-        pem_file_full_path = path + self.account['key_name'] + '.pem'
         username = self.vendor['username']
-        region = self.account['region']
-        ip_converted = ip.replace('.','-')
 
         command = ""
         for key, value in kwargs.items():
             command += value + " "
 
-        #cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        #cmd += f" 'ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{ip}' -t '{command}' "
-        #os.system(cmd)
+        cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{ip}' -t '{command}'"
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
 
     def execute_script(self, instance_ID: str, script_name: str):
@@ -286,8 +284,8 @@ class OCI(Cloud):
         ip_converted = ip.replace('.','-')
 
         script_cmd = utils.script2cmd(script_name)
-        #cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@{ip} -t 'eval {script_cmd}' "
-        #os.system(cmd)
+        cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{ip} -t 'eval {script_cmd}' "
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
 
     def destroy_nodes(self, node_names=None, IDs=None, need_confirmation=True):
