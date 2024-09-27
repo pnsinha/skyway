@@ -236,20 +236,27 @@ class OCI(Cloud):
 
         return nodes
 
-    def connect_node(self, instance):
+    def connect_node(self, instance, separate_terminal=True):
         """
         Connect to an instance using account's pem file
-        [account_name].pem file should be under $SKYWAYROOT/etc/accounts
         It is important to create the node using the account's key-name.
         """
         public_ip = self.get_host_ip(instance)
-        account_pem_file = self.account['private_key']
         username = "opc"
         
-        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
+        if separate_terminal == True:
+            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+            cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
+        else:
+            cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
         p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
         #os.system(cmd)
+
+        node_info = {
+            'private_key' : self.my_ssh_private_key,
+            'login' : f"{username}@{public_ip}",
+        }
+        return node_info
 
     def execute(self, instance_ID: str, **kwargs):
         '''

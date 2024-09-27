@@ -323,7 +323,7 @@ class GCP(Cloud):
         
         return nodes
 
-    def connect_node(self, node_id):
+    def connect_node(self, node_id, separate_terminal=True):
         """
         Connect to an instance using account's pem file
         [account_name].pem file should be under $SKYWAYROOT/etc/accounts
@@ -345,19 +345,41 @@ class GCP(Cloud):
                 if node.id == node_id:
                     break
         if node is not None:
-            host = node.public_ips[0]
+            public_ip = node.public_ips[0]
+            username = os.environ['USER']
+            print("Connecting to host: " + public_ip)
 
-            user_name = os.environ['USER']
-            print("Connecting to host: " + host)
+            if separate_terminal == True:
+                cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+                cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
+            else:
+                cmd = f"ssh -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
 
-            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-            cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {user_name}@{host}' "
-        
-            #cmd = 'ssh ' + user_name + '@' + host
             os.system(cmd)
         else:
             print(f"Node {node_id} does not exist.")
-        return
+
+        node_info = {
+            'private_key' : "",
+            'login' : f"{username}@{public_ip}",
+        }
+        return node_info
+
+    def get_node_connection_info(self, node_id):
+        node = None
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.id == node_id:
+                    break
+        if node is not None:                
+            public_ip = node.public_ips[0]
+        
+        username = self.vendor['username']
+        node_info = {
+            'private_key' : "",
+            'login' : f"{username}@{public_ip}",
+        }
+        return node_info
 
     def execute(self, node_id: str, **kwargs):
         '''

@@ -299,15 +299,24 @@ class SLURMCluster(Cloud):
         #p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
         os.system(cmd)
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_name, separate_terminal=True):
         '''
         connect to a node (aka instance) via SSH: for slurm, node name is alias to the host IP
         '''
         print(f"Node name: {node_name}")
-        
-        cmd = f"gnome-terminal --title='Connecting to the node' -- bash -c 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
+        if separate_terminal == True:
+            cmd = f"gnome-terminal --title='Connecting to the node' -- bash -c 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
+        else:
+            cmd = f"ssh  -o StrictHostKeyChecking=accept-new {node_name}"
         print(f"{cmd}")
         os.system(cmd)
+
+    def get_node_connection_info(self, node_name):
+        node_info = {
+            'private_key' : "",
+            'login' : f"{node_name}",
+        }
+        return node_info
 
     def destroy_nodes(self, IDs = [], need_confirmation=True):
         '''

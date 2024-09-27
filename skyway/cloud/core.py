@@ -11,21 +11,6 @@ from .. import utils
 
 class Cloud():
     
-    @staticmethod
-    def create(vendor: str, kwargs):
-        print(f"Vendor: {vendor}")
-        vendor = vendor.lower()
-        # load cloud.yaml under $SKYWAYROOT/etc/
-        vendor_cfg = utils.load_config('cloud')
-        print(f"Vendor cfg: {vendor_cfg}")
-        if vendor not in vendor_cfg:
-            raise Exception(f'Cloud vendor {vendor} is undefined.')
-
-        from importlib import import_module
-        module = import_module('skyway.cloud.' + vendor)
-        cloud_class = getattr(module, vendor.upper())
-        return cloud_class(vendor_cfg[vendor], kwargs)
-
     def __init__(self, vendor_cfg, kwargs):
         self.vendor = vendor_cfg
         self.onpremises = False
@@ -95,7 +80,7 @@ class Cloud():
         '''
         pass
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_name, separate_terminal=True):
         '''
         connect to a node (aka instance) via SSH
         '''
@@ -131,6 +116,12 @@ class Cloud():
         '''
         pass
 
+    def get_node_connection_info(self, node_name):
+        '''
+        get the username and host ip for ssh connection
+        '''
+        pass
+
     def get_unit_price(self, node):
         '''
         get the unit price of a node object (inferring from its name and from the cloud.yaml file)
@@ -159,3 +150,19 @@ class Cloud():
         get the running cost of all the nodes (aka instances) (from the vendor API for running time and the unit cost)
         '''
         pass
+
+
+    @staticmethod
+    def create(vendor: str, kwargs):
+        print(f"Vendor: {vendor}")
+        vendor = vendor.lower()
+        # load cloud.yaml under $SKYWAYROOT/etc/
+        vendor_cfg = utils.load_config('cloud')
+        print(f"Vendor cfg: {vendor_cfg}")
+        if vendor not in vendor_cfg:
+            raise Exception(f'Cloud vendor {vendor} is undefined.')
+
+        from importlib import import_module
+        module = import_module('skyway.cloud.' + vendor)
+        cloud_class = getattr(module, vendor.upper())
+        return cloud_class(vendor_cfg[vendor], kwargs)

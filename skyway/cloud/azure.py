@@ -279,7 +279,10 @@ class AZURE(Cloud):
         '''
         
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_name, separate_terminal=True):
+        pass
+
+    def get_node_connection_info(self, instance_ID):
         pass
 
     def destroy_nodes(self, node_names, need_confirmation=True):

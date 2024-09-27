@@ -245,7 +245,7 @@ class AWS(Cloud):
 
         return nodes
 
-    def connect_node(self, instance_ID):
+    def connect_node(self, instance_ID, separate_terminal=True):
         """
         Connect to an instance using account's pem file
         [account_name].pem file should be under $SKYWAYROOT/etc/accounts
@@ -259,9 +259,29 @@ class AWS(Cloud):
         region = self.account['region']
         ip_converted = ip.replace('.','-')
 
-        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' "
+        if separate_terminal == True:
+            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+            cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' "
+        else:
+            cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com"
         os.system(cmd)
+
+        node_info = {
+            'private_key' : self.my_ssh_private_key,
+            'login' : f"{username}@ec2-{ip_converted}.{region}.compute.amazonaws.com",
+        }
+        return node_info
+
+    def get_node_connection_info(self, instance_ID):
+        username = self.vendor['username']
+        ip = self.get_host_ip(instance_ID)
+        ip_converted = ip.replace('.','-')
+        region = self.account['region']
+        node_info = {
+            'private_key' : self.my_ssh_private_key,
+            'login' : f"{username}@ec2-{ip_converted}.{region}.compute.amazonaws.com",
+        }
+        return node_info
 
     def execute(self, instance_ID: str, **kwargs):
         '''
