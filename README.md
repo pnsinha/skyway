@@ -17,6 +17,7 @@ pip install -r requirements.txt
 
 You need to set up a folder that contains a YAML file that lists the available cloud vendors, and separate YAML files each for a cloud account under `SKYWAYROOT`.
 
+
 ## Usage
 
 1) List all the node types available to an account
@@ -52,9 +53,3 @@ You need to set up a folder that contains a YAML file that lists the available c
    skyway_dashboard
 ```
 
-#Refer to the [Skyway homepage](https://cloud-skyway.rcc.uchicago.edu/)
-#for more information.
-
-#The generated documentation is published by [GitHub Pages](https://ndtrung81.github.io/skyway/).
-
-#The Skyway source code isavailable through [PyPI](https://pypi.org/project/Skyway-cloud/).
