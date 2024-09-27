@@ -7,5 +7,7 @@
 
 echo "Greetings from VM!" > ~/output.txt
 
+skyway_transfer training.py
+
 source activate pytorch
 python training.py >> ~/output.txt

@@ -9,7 +9,6 @@ The following step-by-step workflow is used to test the basic functionalities:
 
    skyway_nodetypes --account=rcc-aws
 
-
 2) Submit an interactive job to AWS
 
    skyway_interative --account=rcc-aws --constraint=t1 --time=01:00:00
@@ -24,7 +23,7 @@ For a GPU instance, use
 
 4) Transfer data to the instance named your-run
 
-   skyway_transfer --account=rcc-aws -J your-run
+   skyway_transfer --account=rcc-aws -J your-run training.py
 
 5) Connect to the VM named your-run
 
@@ -43,6 +42,6 @@ Once on the VM, do
 
 7) Submit a batch job to do similar tasks after step 4
 
-   skyway_batch --account=rcc-aws --constraint=t1 --time=00:15:00 --script=job_script.sh
+   skyway_batch job_script.sh
 
 
