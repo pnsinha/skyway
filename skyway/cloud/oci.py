@@ -232,7 +232,8 @@ class OCI(Cloud):
 
         # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
         print(f"To connect to the instance, run:")
-        cmd = f"  ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
+        cmd = f"  ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@{public_ip} or"
+        print(f"  skyway_connect --account={self.account_name} {instance.display_name}")
         print(f"{cmd}")
         cmd += f" -t 'sudo shutdown -P {walltime_in_minutes}'; bash "
         #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mount -t nfs {io_server}:/software /software' "

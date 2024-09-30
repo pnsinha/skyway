@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 import torch
@@ -81,7 +82,7 @@ if __name__ == "__main__":
     batch_size = 64
     epochs = 5
 
-    download_data = False
+    download_data = True
     training_data = datasets.FashionMNIST(
         root="data",
         train=True,
@@ -135,3 +136,8 @@ if __name__ == "__main__":
         train_loop(train_dataloader, model, loss_fn, optimizer, device)
         test_loop(test_dataloader, model, loss_fn, device)
     print("Done!")
+
+    dmy = datetime.datetime.now()
+    date = dmy.strftime("%d%b%y")
+    model_version=f"model-{date}.pkl"
+    torch.save(model.state_dict(), model_version)

@@ -12,7 +12,6 @@ from subprocess import PIPE, Popen
 
 import colorama
 from colorama import Fore
-import pandas
 
 import skyway
 from skyway.cloud.aws import *

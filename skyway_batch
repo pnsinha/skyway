@@ -10,6 +10,9 @@ import os
 import sys
 from subprocess import PIPE, Popen
 
+import colorama
+from colorama import Fore
+
 import skyway
 from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
@@ -39,10 +42,16 @@ class InstanceDescriptor:
 
         self.user = os.environ['USER']
 
-    def submitJob(self, script_name=None):
-        print(f"creating node from {self.vendor_name} with account {self.account_name}")
+    def submitJob(self, script_name=None, pre_execute=""):
+        print(Fore.BLUE + f"Requesting node from {self.vendor_name} with account {self.account_name}")
         nodes = self.account.create_nodes(self.node_type, [self.jobname], need_confirmation=False, walltime=self.walltime)
-        
+
+        # execute pre-execute commands after nodes are available: e.g. data transfers
+        if pre_execute != "":
+            # append the command with account and job name
+            pre_execute += " --account=" + account_name + " -J" + job_name
+            os.system(pre_execute)
+
         # execute the commands listed in the script on the compute node
         if script_name is not None:
             if "midway3" in self.vendor_name:
@@ -103,7 +112,9 @@ def parse_script(filename):
 
 if __name__ == "__main__":
 
-    msg = "Skyway CLI batch mode"
+    colorama.init(autoreset=True)
+
+    msg = "Skyway CLI batch job submisssion"
     script = sys.argv[1]
     args = parse_script(script)
 
@@ -140,11 +151,5 @@ if __name__ == "__main__":
     # create an instance descriptor
     instanceDescriptor = InstanceDescriptor(job_name, account_name, node_type, walltime, vendor_name)
 
-    # execute pre-launch commands: e.g. data transfers
-    if skyway_cmd != "":
-        # append the command with account and job name
-        skyway_cmd += " --account=" + account_name + " -J" + job_name
-        os.system(skyway_cmd)
-
     # submit job
-    instanceDescriptor.submitJob(script_name=script)
+    instanceDescriptor.submitJob(script_name=script, pre_execute=skyway_cmd)
