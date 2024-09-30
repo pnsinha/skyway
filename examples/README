@@ -45,3 +45,19 @@ Once on the VM, do
    skyway_batch job_script.sh
 
 
+8) Connect to the VM to check the current progress of the run (like step 5)
+
+   skyway_connect --account=rcc-aws your-run
+
+Once on the VM:
+
+   ls -lrt
+   cat output.txt
+   exit
+
+9) Transfer output data from cloud
+
+  skyway_transfer --account=rcc-aws -J your-run --from-cloud --cloud-path=~/model*.pkl .
+
+10) Cancel the job (like step 6)
+
