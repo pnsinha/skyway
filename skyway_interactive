@@ -109,12 +109,12 @@ if __name__ == "__main__":
 
     msg = "Skyway CLI interactive mode"
     parser = argparse.ArgumentParser(description=msg)
-    parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
-    parser.add_argument('--account', dest='account', default="", help="Account name")
+    parser.add_argument('-J', '--job-name', dest='jobname', default="your-run", help="Job name")
+    parser.add_argument('-A', '--account', dest='account', default="", help="Account name")
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
     parser.add_argument('--partition', dest='partition', default="", help="Partition")
     parser.add_argument('--constraint', dest='constraint', default="", help="Node type")
-    parser.add_argument('--time', dest='walltime', default="", help="Walltime")
+    parser.add_argument('-t', '--time', dest='walltime', default="", help="Walltime")
     
     args = parser.parse_args()
 

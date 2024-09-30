@@ -104,8 +104,8 @@ if __name__ == "__main__":
 
     msg = "Skyway execute commands on a running VM of a cloud account"
     parser = argparse.ArgumentParser(description=msg)
-    parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
-    parser.add_argument('--account', dest='account', default="", help="Account name")
+    parser.add_argument('-J', '--job-name', dest='jobname', default="your-run", help="Job name")
+    parser.add_argument('-A', '--account', dest='account', default="", help="Account name")
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
     parser.add_argument(dest='script', nargs='*', default="", help="Script to run")
     args = parser.parse_args()
