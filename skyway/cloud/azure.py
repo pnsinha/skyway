@@ -5,15 +5,18 @@
 """@package docstring
 Documentation for Azure Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
 import logging
+import os
 import subprocess
 from tabulate import tabulate
-from datetime import datetime, timezone
 
 from .core import Cloud
 from .. import utils
+
+from colorama import Fore
 import pandas as pd
 
 from azure.identity import ClientSecretCredential
@@ -143,7 +146,7 @@ class AZURE(Cloud):
                 return
 
         count = len(node_names)
-        print(f"Allocating {count} instance ...")
+        print(Fore.BLUE + f"Allocating {count} instance ...", end=" ")
 
         nodes = {}
         node_cfg = self.vendor['node-types'][node_type]
@@ -248,7 +251,7 @@ class AZURE(Cloud):
             creation_time_str = node.extra.get('properties')['timeCreated']
             nodes[node_name] = [str(node.id), node_type, creation_time_str]
 
-            print(f"Allocated instance: {node_name}")
+            print(f"\nCreated instance: {node_name}")
 
             # ssh to the node and execute a shutdown command scheduled for walltime
             '''

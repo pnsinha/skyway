@@ -6,14 +6,18 @@
 """@package docstring
 Documentation for SLURMCluster Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
+import logging
+import os
 import subprocess
 from tabulate import tabulate
+
 from .core import Cloud
 from .. import utils
 
-from datetime import datetime, timezone
+from colorama import Fore
 import pandas as pd
 
 class SLURMJob:

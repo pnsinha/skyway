@@ -7,15 +7,18 @@
 """@package docstring
 Documentation for GCP Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
 import logging
+import os
 import subprocess
 from tabulate import tabulate
-from datetime import datetime, timezone
 
 from .core import Cloud
 from .. import utils
+
+from colorama import Fore
 import pandas as pd
 
 # apache-libcloud
@@ -233,7 +236,8 @@ class GCP(Cloud):
         count = len(node_names)
         if count <= 0:
             raise Exception(f'List of node names is empty.')
-        print(f"Allocating {count} instance ...")
+
+        print(Fore.BLUE + f"Allocating {count} instance ...", end=" ")
 
         location_name = self.vendor['location'] + '-c'
         locations = self.driver.list_locations()
@@ -309,7 +313,7 @@ class GCP(Cloud):
             node_type = node_cfg['name']
             nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
 
-            print(f'Created instance: {node.name}')
+            print(f'\nCreated instance: {node.name}')
 
             # ssh to the node and execute a shutdown command scheduled for walltime
             host = node.public_ips[0]

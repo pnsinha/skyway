@@ -6,14 +6,18 @@
 """@package docstring
 Documentation for OCI Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
+import logging
+import os
 import subprocess
 from tabulate import tabulate
+
 from .core import Cloud
 from .. import utils
 
-from datetime import datetime, timezone
+from colorama import Fore
 import pandas as pd
 
 # Oracle Cloud Infrastructure (OCI) Python SDK
@@ -149,7 +153,7 @@ class OCI(Cloud):
 
         count = len(node_names)      
         node_name = node_names[0]
-        print(f"Allocating {count} instance ...")
+        print(Fore.BLUE + f"Allocating {count} instance ...", end=" ")
 
         # ImageID and KeyName provided by the account then user can connect to the running node
         #   if ImageID is from the vendor, KeyName from the account, ssh connection is denied
@@ -224,7 +228,7 @@ class OCI(Cloud):
         
         #ip_converted = ip.replace('.','-')
 
-        print(f"Created instance: {instance.display_name}")
+        print(f"\nCreated instance: {instance.display_name}")
 
         # need to install nfs-utils on the VM (or having an image that has nfs-utils installed)
         print(f"To connect to the instance, run:")

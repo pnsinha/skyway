@@ -100,7 +100,7 @@ def parse_script(filename):
 
 if __name__ == "__main__":
    
-    msg = "Skyway execute commands ono a running VM of a cloud account"
+    msg = "Skyway execute commands on a running VM of a cloud account"
     parser = argparse.ArgumentParser(description=msg)
     parser.add_argument('-J', dest='jobname', default="your-run", help="Job name")
     parser.add_argument('--account', dest='account', default="", help="Account name")
