@@ -263,7 +263,7 @@ class AWS(Cloud):
         ip_converted = ip.replace('.','-')
 
         if separate_terminal == True:
-            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+            cmd = "gnome-terminal -q --title='Connecting to the node' -- bash -c "
             cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' "
         else:
             cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com"
@@ -305,7 +305,7 @@ class AWS(Cloud):
         for key, value in kwargs.items():
             command += value + " "
 
-        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+        cmd = "gnome-terminal -q --title='Connecting to the node' -- bash -c "
         cmd += f" 'ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com' -t '{command}' "
         p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 

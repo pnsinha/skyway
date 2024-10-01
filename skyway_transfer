@@ -74,14 +74,14 @@ class InstanceDescriptor:
 
             if from_cloud == True:
                 # copy from cloud
-                cmd = f"scp -i {private_key} -o StrictHostKeyChecking=accept-new {remote}:{cloud_path} {local_data[0]}"
+                cmd = f"scp -rC -i {private_key} -o StrictHostKeyChecking=accept-new {remote}:{cloud_path} {local_data[0]}"
                 
             else:
                 # copy to cloud
                 if cloud_path == "":
-                    cmd = f"scp -i {private_key} -o StrictHostKeyChecking=accept-new {local} {remote}:~/"
+                    cmd = f"scp -rC -i {private_key} -o StrictHostKeyChecking=accept-new {local} {remote}:~/"
                 else:
-                    cmd = f"scp -i {private_key} -o StrictHostKeyChecking=accept-new {local} {remote}:/{cloud_path}"
+                    cmd = f"scp -rC -i {private_key} -o StrictHostKeyChecking=accept-new {local} {remote}:/{cloud_path}"
                
             print(f"Executing: {cmd}")
             os.system(cmd)
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument('-J', '--job-name', dest='jobname', default="your-run", help="Job name")
     parser.add_argument('-A', '--account', dest='account', default="", help="Account name")
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
-    parser.add_argument('--from-cloud', dest='from_cloud', action='store_true', default=True, help="Copy data from cloud if specified")
+    parser.add_argument('--from-cloud', dest='from_cloud', action='store_true', default=False, help="Copy data from cloud if specified")
     parser.add_argument('--cloud-path', dest='cloud_path', default="", help="Path to cloud space, empty for $HOME")
     parser.add_argument(dest='data', nargs='*', default="", help="Data to transfer to the VM")
 

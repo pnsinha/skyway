@@ -79,15 +79,15 @@ if __name__ == "__main__":
 
     msg = "Skyway connect to a running VM of a cloud account"
     parser = argparse.ArgumentParser(description=msg)
+    parser.add_argument('-J', '--job-name', dest='jobname', default="your-run", help="Job name")
     parser.add_argument('-A', '--account', dest='account', default="", help="Account name")
     parser.add_argument('--provider', dest='provider', default="", help="Vendor name: AWS, GCP, Azure, or RCC Midway")
-    parser.add_argument(dest='jobname', nargs='*', default="", help="Job name to cancel")
 
     args = parser.parse_args()
 
     account_name = args.account
     provider = args.provider.lower()
-    job_name = args.jobname[0]
+    job_name = args.jobname
 
     if provider == "":
         # try to infer the vendor name from account
@@ -115,4 +115,3 @@ if __name__ == "__main__":
     # connect to 
     node_names = [job_name]
     instanceDescriptor.connectJob(node_names=node_names)
-    

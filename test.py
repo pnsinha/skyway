@@ -21,8 +21,8 @@ from skyway.cloud.slurm import *
 from skyway.cloud.oci import *
 from datetime import datetime, timezone
 
-from skyway import service
-from skyway.service import core
+#from skyway import service
+#from skyway.service import core
 
 # Test account
 #account.list()
@@ -31,11 +31,11 @@ from skyway.service import core
 #account.show("ndtrung-azure")
 
 # Test cloud nodes
-#account = AWS('rcc-aws')
+account = AWS('rcc-aws')
 #account = GCP('rcc-gcp')
 #account = GCP('ndtrung-gcp')
 #account = AZURE('rcc-azure')
-account = OCI('ndtrung-oci')
+#account = OCI('ndtrung-oci')
 #account = SLURMCluster('rcc-slurm')
 
 # list all the node types available
@@ -58,7 +58,7 @@ account.get_budget()
 nodes, output_str = account.list_nodes(verbose=True)
 
 
-#account.get_cost_and_usage("2024-05-30", "2024-06-04", verbose=True)
+#account.get_cost_and_usage("2024-05-30", "2024-10-04", verbose=True)
 #account.get_budget_api()
 #nodes = account.get_running_nodes(verbose=True)
 
