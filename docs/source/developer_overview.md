@@ -2,107 +2,103 @@
 <!-- From these links:
 https://cloud-skyway.rcc.uchicago.edu/ -->
 
-This documentation provides information for admins and developers to install and deploy Skyway on a management node and login node. 
+This documentation provides information for admins and developers to install and deploy Skyway on the login node of a HPC system. 
 
 ## Pre-requisites
 
-The login node and service (management) node should be installed the following software:
+* Python 3.x
 
-* SLURM
-* NFS
+## Installation
 
-The following `python` packages are also needed to be ready to use
+Installing Skyway is straightforward
 
-* `miniconda`
-* `boto3`
-* `libcloud`
-* `pysql`
-* `tabulate`
-
-The login and management nodes are set up in the same manner as for a regular login node and SLURM management node, ready for accepting jobs. If users submit jobs to on-premises compute nodes (e.g. by specifying a proper partition), the jobs will be put on a regular queue.
-
-## Installation and Configuration
-
-On the (management) node (e.g. `skyway-dev` that is accessible from the `midway3` login node):
-
-1. Create a folder named as `skyway` at root: `/opt/skyway`
-2. Checkout this repo into `/opt/skyway/pkgs/skyway` ((or later `pip install skyway-cloud` via [PyPI](https://pypi.org/project/Skyway-cloud/))
-3. Prepare a configuration folder `/opt/skyway/etc/`
-4. Prepare several configuration files under `/opt/skyway/etc`
-    * `root.yaml`: contain any attributes used by the management process
-    * `cloud.yaml`: contain global information for every cloud vendors and VM types (for all customers, note the differences between AWS and GCP)
-    * `skyway.yaml`: define configuration for the `skyway` python package
-    * `accounts/*.yaml`: define configuration for specific cloud accounts (see the .yaml files for setting up individual PIs and RCC's cloud accounts)
-    * `services/*.yaml`: define a service daemon process: The file name contains account (i.e. group) and partition in the format of `[group]-[cloud]`, for example, `cloud.rcc-aws.yaml`
-5. Prepare the following script under `/opt/skyway/bin`, named `skyway`:
-
-```
-#!/bin/sh
-
-export SKYWAYROOT=/skyway
-export PYTHONPATH=$PYTHONPATH:/skyway/pkgs
-
-if [ "`which python3 2>/dev/null`" = "" ]; then source /skyway/bin/bashrc; fi
-
-if [ "$*" = "" ]; then python3 -m skyway
-else python3 -m skyway.$*; fi
+``` py linenums="1"
+  git clone https://github.com/ndtrung81/skyway
+  cd skyway
+  python3 -m venv skyway-env
+  source skyway-env/bin/activate 
+  pip install -r requirements.txt
+  export SKYWAYROOT=/path/to/skyway
+  export PATH=$SKYWAYROOT:$PATH
 ```
 
-and give it execute-mode
+Line 1: Check out the GitHub repo
+
+Lines 3-4: Create a virtual environment and activate it
+
+Line 5: Install the required packages into the environment
+
+Lines 6-7: Set the environment variable `SKYWAYROOT` and preppend it to `PATH`
+
+## Configuration
+
+Under the `SKYWAYROOT` folder, create a folder structure
 ```
-chmod +x /opt/skyway/bin/skyway
-```
-
-
-On the head node (e.g. `skyway2-login1`):
-
-* What should I do on the skyway login node so that users can submit jobs through skyway? – No need to do anything– just to make sure that SLURM functions normally.
-
-
-## Deployment
-
-* On the service node? How to launch the daemon? – see above: each cloud partition (or account) needs a separate process (daemon) to be launched via `skyway service [name-of-the-partition]`: a configuration file is expected under `/opt/skyway/etc/services`, for example, `cloud.rcc-aws.yaml` for the RCC account with AWS. There is also a so-called `watcher` (defined by `watcher.yaml`) that needs to be launched to overlook all cloud services.
-* On the login node? No need to do anything, users just submit jobs to SLURM, specifying the constraint (e.g. `c4` or `g1`) and their account, then the `skyway` watcher on the management node will periodically query the SLURM queue to send the jobs to the cloud partition.
-
-## Common commands
-
-The following common commands are available on the service node.
-
+  etc/
+    - accounts/
+        - rcc-aws.yaml
+    - cloud.yaml
 ```
 
-skyway service
-skyway service --status
-skyway service --regist billing
-skyway service --restart billing
-skyway service --restart cloud-rcc-aws
-skyway service --start cloud-rcc-aws
-skyway service --stop cloud-rcc-aws
+where the content of the file `cloud.yaml` includes the following:
+``` py linenums="1"
+aws:
+    master_access_key_id: 'AKIA--------------'
+    master_secret_access_key: '7bqh-------------'
 
-skyway cloud
-skyway cloud rcc-aws --test
-skyway cloud rcc-aws --connect rcc-aws-t1-001
-skyway cloud rcc-aws --connect rcc-io
-skyway cloud rcc-aws --ls
-skyway cloud rcc-aws --rm i-0ecb224c29fdcb688
+    username: ec2-user
+    key_name: rcc-skyway
+    ami_id : ami-0b9c9831f6e1cc731
+    io-node: 18.224.41.227
+    grace_sec: 300
 
-skyway billing
-skyway billing rcc-aws --set amount=10
-skyway billing rcc-aws --set rate=6.0
-skyway billing rcc-aws --summary
-
-skyway misc.db_test
-skyway misc.nodes
-skyway misc.nodes --update
-skyway misc.sendmail
-
-skyway slurm --update-conf
-
+    node-types:
+        t1:  { name: t2.micro,    price: 0.0116, cores: 1,  memgb: 1 }
+        c1:  { name: c5.large,    price: 0.085,  cores: 1,  memgb: 3.5 }
+        c8:  { name: c5.4xlarge,  price: 0.68,   cores: 8,  memgb: 32 }
+        g1:  { name: p3.2xlarge,  price: 3.06,   cores: 4,  memgb: 61,  gpu: 1 }
 ```
 
-Some notes:
+This file lists all the supported cloud vendors such as `aws` and their node (VM) types.
 
-* Enable Skyway as a trusted operator:  Is it really possible from Skyway setting, or needs some sort of ITS support? – PIs ask ITS to use RCC Skyway to operate their AWS account: ITS is supposed to have a script that gives RCC permission to operate the given AWS account through their organizational AWS master access key.
-* Suppose that I want to add another instance type to AWS and to GCP, what should I do? – see `/opt/skyway/etc/cloud.yml`
-* Suppose that I want to add another cloud account (AWS and GCP) for a PI, what is the protocol and how can I achieve it from the configuration file? – add another yaml file under `/opt/skyway/etc/accounts`
-* If I change the source code under `/opt/skyway/pkgs/skyway`, what are the steps to test the changes? no need to stop and restart the daemons, everything is python.
+The file `rcc-aws.yaml` lists all the users allowed to access the cloud account `rcc-aws`.
 
+
+``` py linenums="1"
+cloud: aws
+group: rcc
+account:
+     access_key_id: 'AKIA53-------------'
+    secret_access_key: '34oXS-------------'
+    region: us-east-2
+    security_group: ['sg-0a79--------------']
+    protected_nodes: ['rcc-io']
+    account_id: '3910-------------'
+    role_name: rcc-skyway
+    ami_id: 'ami-0fbfb390428631854'
+    key_name: rcc-aws
+nodes:
+    c1:   4
+    c36:  2
+    g1:   2
+users:
+    user1: { budget: 100 } 
+    user2: { budget: 150 }
+```
+
+The `skyway` Python package is light weight
+
+```
+skyway/
+   - cloud/
+      - aws.py
+      - azure.py
+      - gcp.py
+      - oci.py
+      - slurm.py
+   - __init__.py
+   - account.py
+   - utils.py
+docs/
+examples/
+```
