@@ -21,6 +21,8 @@ from skyway.cloud.slurm import *
 from skyway.cloud.oci import *
 from datetime import datetime, timezone
 
+import tabulate
+
 #from skyway import service
 #from skyway.service import core
 
@@ -42,12 +44,12 @@ account = AWS('rcc-aws')
 account.get_node_types()
 
 # list all the users in this account
-account.get_group_members()
+#account.get_group_members()
 
 # check if the current user is valid (and able to submit jobs)
 user_name = os.environ['USER']
 #account.check_valid_user(user_name)
-account.get_budget()
+#account.get_budget()
 
 # create 1 node (instance)
 #nodes = account.create_nodes('t1', ['your-run'], walltime="00:15:00")
@@ -55,9 +57,12 @@ account.get_budget()
 #account.get_all_images()
 
 # list all the nodes (instances)
-nodes, output_str = account.list_nodes(verbose=True)
+#nodes, output_str = account.list_nodes(verbose=True)
+user_budget = account.get_budget(user_name=user_name, verbose=False)
+usage, balance = account.get_cost_and_usage_from_db(user_name=user_name)
 
-
+data = [[user_name, user_budget, usage, balance]]
+print(tabulate.tabulate(data, headers=["User", 'Allocation', 'Usage', 'Balance']))
 #account.get_cost_and_usage("2024-05-30", "2024-10-04", verbose=True)
 #account.get_budget_api()
 #nodes = account.get_running_nodes(verbose=True)
