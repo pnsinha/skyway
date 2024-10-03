@@ -77,9 +77,9 @@ class OCI(Cloud):
         self.account_name = account
         self.onpremises = False
 
-        # copy ssh pem file to pwd, change the permission to 400
+        # copy ssh pem file to ~/, change the permission to 400
         pem_file_full_path = account_path + self.account['private_key']
-        self.my_ssh_private_key =  f".my_oci_ssh_key.pem"
+        self.my_ssh_private_key =  f"~/.my_oci_ssh_key.pem"
         cmd = f"cp {pem_file_full_path} {self.my_ssh_private_key}; chmod 400 {self.my_ssh_private_key}"
         p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 

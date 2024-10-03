@@ -93,9 +93,9 @@ class AWS(Cloud):
             EC2 = get_driver(Provider.EC2)
             self.driver = EC2(self.account['access_key_id'], self.account['secret_access_key'], self.account['region'])
         
-        # copy ssh pem file to pwd, change the permission to 400
+        # copy ssh pem file to ~/, change the permission to 400
         pem_file_full_path = account_path + self.account['key_name'] + '.pem'
-        self.my_ssh_private_key =  f".my_aws_ssh_key.pem"
+        self.my_ssh_private_key =  f"~/.my_aws_ssh_key.pem"
         cmd = f"cp {pem_file_full_path} {self.my_ssh_private_key}; chmod 400 {self.my_ssh_private_key}"
         p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
@@ -121,9 +121,11 @@ class AWS(Cloud):
                 
                 instance_unit_cost = self.get_unit_price_instance(instance)
                 running_cost = running_time.total_seconds()/3600.0 * instance_unit_cost
+                instance_user_name = self.get_instance_user_name(instance)
 
                 nodes.append([self.get_instance_name(instance),
-                              instance.state['Name'], 
+                              instance_user_name,
+                              instance.state['Name'],
                               instance.instance_type, 
                               instance.instance_id,
                               instance.public_ip_address,
@@ -132,11 +134,11 @@ class AWS(Cloud):
         
         output_str = ''
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
+            print(tabulate(nodes, headers=['Name', 'User', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
         else:
             output_str = io.StringIO()
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
+            print(tabulate(nodes, headers=['Name', 'User', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']), file=output_str)
             print("", file=output_str)
         return nodes, output_str
 
@@ -240,7 +242,7 @@ class AWS(Cloud):
             cmd = f"ssh -i {self.my_ssh_private_key} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
             
             print(f"  {cmd} or")
-            print(f"  skyway_connect --account={self.account_name} {node_names[inode]}")
+            print(f"  skyway_connect --account={self.account_name} -J {node_names[inode]}")
             #cmd = f"ssh -i {pem_file_full_path} -o StrictHostKeyChecking=accept-new {username}@ec2-{ip_converted}.{region}.compute.amazonaws.com "
             #cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /software; sudo mount -t nfs {io_server}:/skyway /home; sudo mount -t nfs {io_server}:/software /software' "
             cmd += f"-t 'sudo shutdown -P {walltime_in_minutes}; sudo mkdir -p /cloud/rcc-aws; sudo mount -t nfs {io_server}:/cloud/rcc-aws /cloud/rcc-aws' "

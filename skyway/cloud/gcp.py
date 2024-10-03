@@ -195,11 +195,14 @@ class GCP(Cloud):
                 # Calculate the running cost
                 instance_unit_cost = self.get_unit_price_instance(node)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
-                nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0], running_time, running_cost])
+
+                node_user_name = self.get_instance_user_name(node)
+
+                nodes.append([node.name, node_user_name, node.state, node.size, node.id, node.public_ips[0], running_time, running_cost])
 
         output_str = ''
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
+            print(tabulate(nodes, headers=['Name', 'User', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
         else:
             output_str = io.StringIO()
