@@ -5,14 +5,18 @@
 """@package docstring
 Documentation for Azure Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
 import logging
+import os
+import subprocess
 from tabulate import tabulate
-from datetime import datetime, timezone
 
 from .core import Cloud
 from .. import utils
+
+from colorama import Fore
 import pandas as pd
 
 from azure.identity import ClientSecretCredential
@@ -60,6 +64,7 @@ class AZURE(Cloud):
       
         self.vendor = vendor_cfg['azure']
         self.account_name = account
+        self.onpremises = False
 
         self.credentials = ClientSecretCredential(client_id=self.account['client_id'],
                                                   client_secret=self.account['client_secret'],
@@ -74,7 +79,7 @@ class AZURE(Cloud):
 
         except Exception as e:
             print(f"An error occurred: {e}")
-        
+       
         assert(self.driver != False)
         return
 
@@ -124,7 +129,7 @@ class AZURE(Cloud):
             print("", file=output_str)
         return nodes, output_str            
 
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
         usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
@@ -139,6 +144,9 @@ class AZURE(Cloud):
             response = input(f"Do you want to create an instance of type {node_type} (${unit_price}/hr)? (y/n) ")
             if response == 'n':
                 return
+
+        count = len(node_names)
+        print(Fore.BLUE + f"Allocating {count} instance ...", end=" ")
 
         nodes = {}
         node_cfg = self.vendor['node-types'][node_type]
@@ -243,6 +251,8 @@ class AZURE(Cloud):
             creation_time_str = node.extra.get('properties')['timeCreated']
             nodes[node_name] = [str(node.id), node_type, creation_time_str]
 
+            print(f"\nCreated instance: {node_name}")
+
             # ssh to the node and execute a shutdown command scheduled for walltime
             '''
             host = node.public_ips[0]
@@ -272,7 +282,10 @@ class AZURE(Cloud):
         '''
         
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_name, separate_terminal=True):
+        pass
+
+    def get_node_connection_info(self, instance_ID):
         pass
 
     def destroy_nodes(self, node_names, need_confirmation=True):
@@ -442,8 +455,21 @@ class AZURE(Cloud):
         """
         node_info = []
         for node_type in self.vendor['node-types']:
-            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['price']])
-        print(tabulate(node_info, headers=['Name', 'Instance Type', 'Per-hour cost']))
+            if 'gpu' in self.vendor['node-types'][node_type]:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              self.vendor['node-types'][node_type]['gpu'],
+                              self.vendor['node-types'][node_type]['gpu-type'],
+                              self.vendor['node-types'][node_type]['price']])
+            else:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              "0",
+                              "--",
+                              self.vendor['node-types'][node_type]['price']])
+        print(tabulate(node_info, headers=['Name', 'Instance Type', 'CPU Cores', 'Memory (GB)', 'GPU', 'GPU Type', 'Per-hour Cost ($)']))
         print("")
 
     def get_group_members(self):

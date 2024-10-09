@@ -7,24 +7,24 @@
 
 # for PI-test to create nodes: needs an ami-id and a security group, and a key pair 
 
+from datetime import datetime, timezone
+
 import skyway
 from skyway import account
-from skyway import billing
 
-import subprocess
-
-from skyway import cloud
 #from skyway.cloud import aws
 #from skyway.cloud import gcp
 from skyway.cloud.aws import *
 from skyway.cloud.gcp import *
 from skyway.cloud.azure import *
 from skyway.cloud.slurm import *
-
+from skyway.cloud.oci import *
 from datetime import datetime, timezone
 
-from skyway import service
-from skyway.service import core
+import tabulate
+
+#from skyway import service
+#from skyway.service import core
 
 # Test account
 #account.list()
@@ -32,27 +32,16 @@ from skyway.service import core
 #account.show("ndtrung-gcp")
 #account.show("ndtrung-azure")
 
-# Test billing
-#b = billing.Billing("ndtrung-aws")
-#u = b.usages(verbose=True)
-
-# Test service
-#service.core.register("cloud-rcc-aws")
-#service.core.start("cloud-rcc-aws")
-#service.core.stop("cloud-rcc-aws")
-#service.core.get_status("cloud-rcc-aws")
-#service.core.list_all()
-
 # Test cloud nodes
-#account = AWS('rcc-aws')
+account = AWS('rcc-aws')
 #account = GCP('rcc-gcp')
 #account = GCP('ndtrung-gcp')
-account = AZURE('rcc-azure')
-
+#account = AZURE('rcc-azure')
+#account = OCI('ndtrung-oci')
 #account = SLURMCluster('rcc-slurm')
 
 # list all the node types available
-#account.get_node_types()
+account.get_node_types()
 
 # list all the users in this account
 #account.get_group_members()
@@ -64,26 +53,19 @@ user_name = os.environ['USER']
 
 # create 1 node (instance)
 #nodes = account.create_nodes('t1', ['your-run'], walltime="00:15:00")
+#nodes = account.create_nodes('c1', ['your-run'], walltime="00:15:00")
 #account.get_all_images()
 
 # list all the nodes (instances)
-nodes, output_str = account.list_nodes(verbose=True)
+#nodes, output_str = account.list_nodes(verbose=True)
+user_budget = account.get_budget(user_name=user_name, verbose=False)
+usage, balance = account.get_cost_and_usage_from_db(user_name=user_name)
 
-
-#account.get_cost_and_usage("2024-05-30", "2024-06-04", verbose=True)
+data = [[user_name, user_budget, usage, balance]]
+print(tabulate.tabulate(data, headers=["User", 'Allocation', 'Usage', 'Balance']))
+#account.get_cost_and_usage("2024-05-30", "2024-10-04", verbose=True)
 #account.get_budget_api()
 #nodes = account.get_running_nodes(verbose=True)
-
-# connect to an instance via SSH
-# NOTE: 
-#   + module unload python/anaconda-2021.05 to avoid OpenSSL conflict
-#   + once on the node, can mount the storage (see  /skyway/post/rcc-aws.sh)
-#       sudo mount -t nfs 172.31.47.245:/skyway /home
-#       sudo mount -t nfs 172.31.47.245:/software /software
-#       sudo mkdir /cloud
-#       sudo mkdir /cloud/rcc-aws
-#       sudo mount -t nfs 172.31.47.245:/cloud/rcc-aws /cloud/rcc-aws
-# where 172.31.47.245 is the private IP4 address of the rcc-io instance (18.224.41.227)
 
 #account.connect_node('node1')
 #account.connect_node('midway3-0038')

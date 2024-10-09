@@ -4,32 +4,20 @@
 # Maintainer: Yuxing Peng, Trung Nguyen
 
 import os
+from tabulate import tabulate
 from .. import utils
 
 # Provide the API for child classes to override
 
 class Cloud():
     
-    @staticmethod
-    def create(vendor: str, kwargs):
-        print(f"Vendor: {vendor}")
-        vendor = vendor.lower()
-        # load cloud.yaml under $SKYWAYROOT/etc/
-        vendor_cfg = utils.load_config('cloud')
-        print(f"Vendor cfg: {vendor_cfg}")
-        if vendor not in vendor_cfg:
-            raise Exception(f'Cloud vendor {vendor} is undefined.')
-
-        from importlib import import_module
-        module = import_module('skyway.cloud.' + vendor)
-        cloud_class = getattr(module, vendor.upper())
-        return cloud_class(vendor_cfg[vendor], kwargs)
-
     def __init__(self, vendor_cfg, kwargs):
         self.vendor = vendor_cfg
-        
+        self.onpremises = False
+
         for k, v in kwargs.items():
             setattr(self, k.replace('-','_'), v)
+            
 
     # account info
 
@@ -49,7 +37,11 @@ class Cloud():
         '''
         get all the user names in this account (listed in the .yaml file)
         '''
-        pass
+        user_info = []
+        for user in self.users:
+            user_info.append([user, self.users[user]['budget']])
+        print(tabulate(user_info, headers=['User', 'Budget']))
+        print("")
 
     # billing operations
 
@@ -88,7 +80,7 @@ class Cloud():
         '''
         pass
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_name, separate_terminal=True):
         '''
         connect to a node (aka instance) via SSH
         '''
@@ -112,9 +104,21 @@ class Cloud():
         '''
         pass
 
+    def execute_script(self, node_id: str, script_name: str):
+        '''
+        execute all the lines in a script on a compute node
+        '''
+        pass
+
     def get_host_ip(self, node_name):
         '''
         get the public IP of a node name
+        '''
+        pass
+
+    def get_node_connection_info(self, node_name):
+        '''
+        get the username and host ip for ssh connection
         '''
         pass
 
@@ -146,3 +150,19 @@ class Cloud():
         get the running cost of all the nodes (aka instances) (from the vendor API for running time and the unit cost)
         '''
         pass
+
+
+    @staticmethod
+    def create(vendor: str, kwargs):
+        print(f"Vendor: {vendor}")
+        vendor = vendor.lower()
+        # load cloud.yaml under $SKYWAYROOT/etc/
+        vendor_cfg = utils.load_config('cloud')
+        print(f"Vendor cfg: {vendor_cfg}")
+        if vendor not in vendor_cfg:
+            raise Exception(f'Cloud vendor {vendor} is undefined.')
+
+        from importlib import import_module
+        module = import_module('skyway.cloud.' + vendor)
+        cloud_class = getattr(module, vendor.upper())
+        return cloud_class(vendor_cfg[vendor], kwargs)

@@ -87,17 +87,14 @@ class InstanceDescriptor:
         pt = datetime.strptime(self.walltime, "%H:%M:%S")
         walltime_in_hours = int(pt.hour + pt.minute/60)
         if "midway3" in self.vendor_name:
-            unit_price = 1.0
+            unit_price = 1.0 # float(self.account.get_unit_price(self.node_type))
         else:
             unit_price = float(self.account.get_unit_price(self.node_type))
         cost = walltime_in_hours * unit_price
         return cost
   
     def list_nodes(self):
-        if "midway3" in self.vendor_name:
-            nodes, list_of_nodes = self.account.list_nodes(verbose=False) 
-        else:
-            nodes, list_of_nodes = self.account.list_nodes(verbose=False) 
+        nodes, list_of_nodes = self.account.list_nodes(verbose=False) 
         return nodes
 
 

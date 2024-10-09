@@ -39,10 +39,4 @@ cfg = load_config('skyway')
 for k in cfg['paths']:
     cfg['paths'][k] = cfg['paths'][k].replace('<ROOT>', os.environ['SKYWAYROOT'])
 
-# if running as root, add to cfg the elements from $SKYWAYROOT/etc/root.yaml
-#   which contains an entry named db that is used to connect to the MySQL databases (node_map, budget and node_journal)
-#if os.getuid() == 0:
-cfg.update(load_config('root'))
 
-#from .nodemap import NodeMap
-#NodeMap.lock_file = cfg['paths']['var'] + 'nodes.lock'

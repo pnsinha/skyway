@@ -30,6 +30,21 @@ def proc(command, strict=True):
     if out == "": return []
     else: return out.split('\n')
 
+# read in a script, combine lines into a string, excluding empty lines and comments starting with #
+def script2cmd(script_name: str):
+    cmd = ""
+    with open(script_name, 'r') as f:        
+        lines = f.readlines()
+
+        for line in lines:
+            l = line.strip()
+            if len(l) == 0:
+                continue
+            if l[0] == '#':
+                continue
+            cmd += l + "; "
+    return cmd
+
 # get the username of a uid
 def get_username(uid):
     uid = proc("getent passwd " + uid + " | awk -F: '{print $1}'")

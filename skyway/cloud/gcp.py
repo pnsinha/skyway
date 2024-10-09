@@ -7,14 +7,18 @@
 """@package docstring
 Documentation for GCP Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
 import logging
+import os
+import subprocess
 from tabulate import tabulate
-from datetime import datetime, timezone
 
 from .core import Cloud
 from .. import utils
+
+from colorama import Fore
 import pandas as pd
 
 # apache-libcloud
@@ -57,6 +61,7 @@ class GCP(Cloud):
       
         self.vendor = vendor_cfg['gcp']
         self.account_name = account
+        self.onpremises = False
 
         ComputeEngine = get_driver(Provider.GCE)
         try:
@@ -138,8 +143,21 @@ class GCP(Cloud):
         """
         node_info = []
         for node_type in self.vendor['node-types']:
-            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['price']])
-        print(tabulate(node_info, headers=['Name', 'Instance Type', 'Per-hour cost']))
+            if 'gpu' in self.vendor['node-types'][node_type]:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              self.vendor['node-types'][node_type]['gpu'],
+                              self.vendor['node-types'][node_type]['gpu-type'],
+                              self.vendor['node-types'][node_type]['price']])
+            else:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              "0",
+                              "--",
+                              self.vendor['node-types'][node_type]['price']])
+        print(tabulate(node_info, headers=['Name', 'Instance Type', 'CPU Cores', 'Memory (GB)', 'GPU', 'GPU Type', 'Per-hour Cost ($)']))
         print("")
 
     def get_group_members(self):
@@ -177,11 +195,14 @@ class GCP(Cloud):
                 # Calculate the running cost
                 instance_unit_cost = self.get_unit_price_instance(node)
                 running_cost = running_time.seconds/3600.0 * instance_unit_cost
-                nodes.append([node.name, node.state, node.size, node.id, node.public_ips[0], running_time, running_cost])
+
+                node_user_name = self.get_instance_user_name(node)
+
+                nodes.append([node.name, node_user_name, node.state, node.size, node.id, node.public_ips[0], running_time, running_cost])
 
         output_str = ''
         if verbose == True:
-            print(tabulate(nodes, headers=['Name', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
+            print(tabulate(nodes, headers=['Name', 'User', 'Status', 'Type', 'Instance ID', 'Host', 'Elapsed Time', 'Running Cost']))
             print("")
         else:
             output_str = io.StringIO()
@@ -189,7 +210,7 @@ class GCP(Cloud):
             print("", file=output_str)
         return nodes, output_str
     
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         """Member function: create_compute
         Create a group of compute instances(nodes, servers, virtual-machines 
         ...) with the given type.
@@ -218,7 +239,9 @@ class GCP(Cloud):
         count = len(node_names)
         if count <= 0:
             raise Exception(f'List of node names is empty.')
-        
+
+        print(Fore.BLUE + f"Allocating {count} instance ...", end=" ")
+
         location_name = self.vendor['location'] + '-c'
         locations = self.driver.list_locations()
         location = next((loc for loc in locations if loc.name == location_name), None)
@@ -293,19 +316,22 @@ class GCP(Cloud):
             node_type = node_cfg['name']
             nodes[node_name] = [node_type, creation_time_str, node.public_ips[0]]
 
-            print(f'Created instance: {node.name}')
+            print(f'\nCreated instance: {node.name}')
 
             # ssh to the node and execute a shutdown command scheduled for walltime
             host = node.public_ips[0]
             user_name = os.environ['USER']
-            print("Connecting to host: " + host)
+            #print("Connecting to host: " + host)
 
             cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t 'sudo shutdown -P {walltime_in_minutes}' "
-            os.system(cmd)           
+            p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+            print("To connect to the instance, run:")
+            print(f"  ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} or")
+            print(f"  skyway_connect --account={self.account_name} {node.name}")
         
         return nodes
 
-    def connect_node(self, node_id):
+    def connect_node(self, node_id, separate_terminal=True):
         """
         Connect to an instance using account's pem file
         [account_name].pem file should be under $SKYWAYROOT/etc/accounts
@@ -327,19 +353,41 @@ class GCP(Cloud):
                 if node.id == node_id:
                     break
         if node is not None:
-            host = node.public_ips[0]
+            public_ip = node.public_ips[0]
+            username = os.environ['USER']
+            print("Connecting to host: " + public_ip)
 
-            user_name = os.environ['USER']
-            print("Connecting to host: " + host)
+            if separate_terminal == True:
+                cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
+                cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {username}@{public_ip}' "
+            else:
+                cmd = f"ssh -o StrictHostKeyChecking=accept-new {username}@{public_ip}"
 
-            cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-            cmd += f" 'ssh -o StrictHostKeyChecking=accept-new {user_name}@{host}' "
-        
-            #cmd = 'ssh ' + user_name + '@' + host
             os.system(cmd)
         else:
             print(f"Node {node_id} does not exist.")
-        return
+
+        node_info = {
+            'private_key' : "",
+            'login' : f"{username}@{public_ip}",
+        }
+        return node_info
+
+    def get_node_connection_info(self, node_id):
+        node = None
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.id == node_id:
+                    break
+        if node is not None:                
+            public_ip = node.public_ips[0]
+        
+        username = self.vendor['username']
+        node_info = {
+            'private_key' : "",
+            'login' : f"{username}@{public_ip}",
+        }
+        return node_info
 
     def execute(self, node_id: str, **kwargs):
         '''
@@ -366,7 +414,27 @@ class GCP(Cloud):
 
             os.system(cmd)
         else:
-            print(f"Node {node_id} does not exist.")            
+            print(f"Node {node_id} does not exist.")
+
+    def execute_script(self, node_id: str, script_name: str):
+        '''
+        execute all the lines in a script on a compute node
+        '''
+        node = None
+        for node in self.driver.list_nodes():
+            if node.state == "running":
+                if node.id == node_id:
+                    break
+        if node is not None:
+            host = node.public_ips[0]
+            user_name = os.environ['USER']
+            script_cmd = utils.script2cmd(script_name)
+            
+            cmd = f"ssh -o StrictHostKeyChecking=accept-new {user_name}@{host} -t '{script_cmd}' "
+            os.system(cmd)
+        else:
+            print(f"Node {node_id} does not exist.") 
+
 
     def destroy_nodes(self, node_names=[], need_confirmation=True):
         '''

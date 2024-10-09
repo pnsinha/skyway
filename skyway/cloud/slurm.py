@@ -6,14 +6,18 @@
 """@package docstring
 Documentation for SLURMCluster Class
 """
-import os
+
+from datetime import datetime, timezone
 import io
+import logging
+import os
 import subprocess
 from tabulate import tabulate
+
 from .core import Cloud
 from .. import utils
 
-from datetime import datetime, timezone
+from colorama import Fore
 import pandas as pd
 
 class SLURMJob:
@@ -60,7 +64,7 @@ class SLURMCluster(Cloud):
 
         self.vendor = vendor_cfg['slurm']
         self.account_name = account
-
+        self.onpremises = True
        
     # account info
 
@@ -87,8 +91,21 @@ class SLURMCluster(Cloud):
         """
         node_info = []
         for node_type in self.vendor['node-types']:
-            node_info.append([node_type, self.vendor['node-types'][node_type]['name'], self.vendor['node-types'][node_type]['price']])
-        print(tabulate(node_info, headers=['Name', 'Instance Type', 'Per-hour cost']))
+            if 'gpu' in self.vendor['node-types'][node_type]:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              self.vendor['node-types'][node_type]['gpu'],
+                              self.vendor['node-types'][node_type]['gpu-type'],
+                              self.vendor['node-types'][node_type]['price']])
+            else:
+                node_info.append([node_type, self.vendor['node-types'][node_type]['name'],
+                              self.vendor['node-types'][node_type]['cores'],
+                              self.vendor['node-types'][node_type]['memgb'],
+                              "0",
+                              "--",
+                              self.vendor['node-types'][node_type]['price']])
+        print(tabulate(node_info, headers=['Name', 'Instance Type', 'CPU Cores', 'Memory (GB)', 'GPU', 'GPU Type', 'Per-hour Cost (SU)']))
         print("")
 
     def get_group_members(self):
@@ -132,7 +149,8 @@ class SLURMCluster(Cloud):
 
     def get_budget_api(self):
         '''
-        get the budget from the cloud account API
+        get the budget from the service provide API
+           accounts balance
         '''
         pass
 
@@ -187,9 +205,6 @@ class SLURMCluster(Cloud):
         i = 0
         nodes = []
         for line in m.splitlines():
-            if i == 0:
-                i = i + 1
-                continue
 
             node_info = line.split()
 
@@ -236,9 +251,10 @@ class SLURMCluster(Cloud):
         return nodes, output_str
 
 
-    def create_nodes(self, node_type: str, node_names = [], need_confirmation = True, walltime = None):
+    def create_nodes(self, node_type: str, node_names = [], interactive = False, need_confirmation = True, walltime = None):
         '''
         create several nodes (aka instances) given a list of node names using salloc
+        for SLURM it is a wrapper of salloc
         '''
         user_name = os.environ['USER']
         user_budget = self.get_budget(user_name=user_name, verbose=False)
@@ -268,26 +284,43 @@ class SLURMCluster(Cloud):
             raise Exception(f'List of node names is empty.')
 
         job_name = node_names[0]
-        cmd = f"salloc --account={self.account['account_id']}"
+        cmd = f"salloc"
+        if interactive == True:
+            cmd = f"sinteractive"
+        cmd += f" --account={self.account['account_id']}"
         cmd += f" -J {job_name}"
         cmd += f" --nodes={count}"
         cmd += f" --ntasks-per-node={ntasks_per_node}"
         cmd += f" --mem={memgb}GB"
         cmd += f" --time={walltime_str}"
         cmd += f" --comment={node_type}"
+        cmd += " --wait-all-nodes=1"
+        if node_type == 'g1':
+            cmd += f" --gres=gpu:1 --partition=gpu"
+        if node_type == 'g2':
+            cmd += f" --gres=gpu:2 --partition=gpu"
         print(f"{cmd}")
+        #p = subprocess.run(cmd, shell=True, text=True, capture_output=True)
         os.system(cmd)
 
-    def connect_node(self, node_name):
+    def connect_node(self, node_name, separate_terminal=True):
         '''
         connect to a node (aka instance) via SSH: for slurm, node name is alias to the host IP
         '''
         print(f"Node name: {node_name}")
-        
-        cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
-        cmd += f" 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
-        #print(f"{cmd}")
+        if separate_terminal == True:
+            cmd = f"gnome-terminal --title='Connecting to the node' -- bash -c 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' "
+        else:
+            cmd = f"ssh  -o StrictHostKeyChecking=accept-new {node_name}"
+        print(f"{cmd}")
         os.system(cmd)
+
+    def get_node_connection_info(self, node_name):
+        node_info = {
+            'private_key' : "",
+            'login' : f"{node_name}",
+        }
+        return node_info
 
     def destroy_nodes(self, IDs = [], need_confirmation=True):
         '''
@@ -340,12 +373,13 @@ class SLURMCluster(Cloud):
             running_cost = running_time_hours * unit_price
         
             # store the record into the database
-            data = [job_user_name, jobid, instance_type, start_time, datetime.now(timezone.utc), running_cost]
+            usage, remaining_balance = self.get_cost_and_usage_from_db(user_name=user_name)
+            data = [job_user_name, jobid, instance_type, start_time, datetime.now(timezone.utc), running_cost, remaining_balance]
 
             if os.path.isfile(self.usage_history):
                 df = pd.read_pickle(self.usage_history)
             else:
-                df = pd.DataFrame([], columns=['User','JobID','InstanceType','Start','End', 'Cost'])
+                df = pd.DataFrame([], columns=['User','JobID','InstanceType','Start','End', 'Cost', 'Balance'])
 
             df = pd.concat([pd.DataFrame([data], columns=df.columns), df], ignore_index=True)
             df.to_pickle(self.usage_history)
@@ -473,6 +507,14 @@ class SLURMCluster(Cloud):
         cmd = "gnome-terminal --title='Connecting to the node' -- bash -c "
         cmd += f" 'ssh  -o StrictHostKeyChecking=accept-new {node_name}' -t '{command}' "
 
+        os.system(cmd)
+
+    def execute_script(self, node_name: str, script_name: str):
+        '''
+        execute all the lines in a script on a compute node
+        '''
+        script_cmd = utils.script2cmd(script_name)
+        cmd = f"ssh  -o StrictHostKeyChecking=accept-new {node_name} -t 'eval {script_cmd}' "
         os.system(cmd)
 
     def get_instance_ID(self, instance_name: str):
