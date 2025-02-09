@@ -59,7 +59,58 @@ class InstanceDescriptor:
     def transferData(self, node_names, local_data, from_cloud=False, cloud_path=""):
         '''
         only get on a on-premise compute node for now with rcc-staff
-        '''
+        '''def transferData(self, node_names, local_data, from_cloud=False, cloud_path=""):
+            """Transfer data to/from cloud instance with improved error handling"""
+            try:
+                if "aws" in self.vendor_name:
+                    # First verify the instance exists and is running
+                    instanceID = self.account.get_instance_ID(node_names[0])
+                    if not instanceID:
+                        raise ValueError(f"No instance found with name {node_names[0]}")
+                        
+                    # Verify instance state
+                    instances = self.account.get_instances(filters=[{
+                        'Name': 'instance-id',
+                        'Values': [instanceID]
+                    }])
+                    instance_list = list(instances)
+                    if not instance_list:
+                        raise ValueError(f"Instance {instanceID} not found in AWS")
+                        
+                    instance = instance_list[0]
+                    if instance.state['Name'] != 'running':
+                        raise ValueError(f"Instance {instanceID} is not running (state: {instance.state['Name']})")
+                        
+                    # Get connection info
+                    node_info = self.account.get_node_connection_info(instanceID)
+                    if not node_info:
+                        raise ValueError("Failed to get connection info")
+                        
+                    private_key = node_info['private_key']
+                    remote = node_info['login']
+                    local = ' '.join(local_data)
+        
+                    # Add connection test before transfer
+                    test_cmd = f"ssh -i {private_key} -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new {remote} 'echo test'"
+                    result = subprocess.run(test_cmd, shell=True, capture_output=True)
+                    if result.returncode != 0:
+                        raise ValueError(f"Cannot connect to instance: {result.stderr.decode()}")
+        
+                    # Proceed with transfer
+                    if from_cloud:
+                        cmd = f"scp -rC -i {private_key} -o StrictHostKeyChecking=accept-new {remote}:{cloud_path} {local_data[0]}"
+                    else:
+                        if not cloud_path:
+                            cloud_path = "~/"
+                        cmd = f"scp -rC -i {private_key} -o StrictHostKeyChecking=accept-new {local} {remote}:{cloud_path}"
+                        
+                    result = subprocess.run(cmd, shell=True, capture_output=True)
+                    if result.returncode != 0:
+                        raise ValueError(f"Transfer failed: {result.stderr.decode()}")
+                        
+            except Exception as e:
+                logging.error(f"Transfer failed: {str(e)}")
+                raise
         
         if "midway3" in self.vendor_name:
             instanceID = self.account.get_host_ip(self.jobname)
